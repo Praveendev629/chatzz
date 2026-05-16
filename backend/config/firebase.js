@@ -1,11 +1,10 @@
 const admin = require('firebase-admin');
-const path = require('path');
 
 let firebaseApp;
 
 const initFirebase = () => {
   try {
-    const serviceAccount = require(path.join(__dirname, 'firebase-service-account.json'));
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     firebaseApp = admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
@@ -29,13 +28,11 @@ const sendPushNotification = async ({ token, title, body, data = {} }) => {
         },
       },
       apns: {
-        payload: {
-          aps: { sound: 'chatzz_sound.caf' },
-        },
+        payload: { aps: { sound: 'chatzz_sound.caf' } },
       },
     });
   } catch (err) {
-    console.error('Push notification error:', err.message);
+    console.error('Push error:', err.message);
   }
 };
 
