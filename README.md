@@ -1,146 +1,254 @@
-# Chatzz — Instant Messenger
+# 🔴 Chatzz — Real-time Chat Application
 
-> **craft by p.s** | Production-ready real-time chat app
-
----
-
-## 🚀 Tech Stack
-
-| Layer | Tech |
-|---|---|
-| Mobile | Expo (React Native) + TypeScript |
-| Navigation | React Navigation v6 |
-| State | Context API + Zustand |
-| Backend | Node.js + Express.js |
-| Real-time | Socket.io |
-| Database | MongoDB Atlas |
-| File Storage | Cloudinary |
-| Push Notifications | Firebase Cloud Messaging |
-| Local Storage | Expo SecureStore |
+> WhatsApp-like chat app built with Expo React Native + Node.js + MongoDB + Socket.io
 
 ---
 
-## 📁 Folder Structure
+## 📁 Project Structure
 
 ```
 chatzz/
-├── backend/
-│   ├── config/          # DB, Cloudinary, Firebase
-│   ├── controllers/     # Business logic
-│   ├── models/          # MongoDB schemas
-│   ├── routes/          # Express routes
-│   ├── socket/          # Socket.io handler
-│   ├── server.js
-│   └── .env.example
-│
-└── frontend/
-    ├── app/
-    │   ├── components/  # ChatBubble, TypingIndicator
-    │   ├── context/     # AuthContext, SocketContext
-    │   ├── navigation/  # AppNavigator
-    │   ├── screens/     # Splash, Login, Chats, People, Profile, Chat
-    │   ├── services/    # api.ts, socket.ts, notifications.ts
-    │   └── utils/       # constants.ts, storage.ts
-    ├── assets/          # logo.png, splash.png, chatzz_sound.mp3
-    ├── App.tsx
-    ├── app.json
-    └── package.json
+├── chatzz-backend/      ← Node.js + Express + MongoDB + Socket.io
+└── chatzz-frontend/     ← Expo React Native (Android APK)
 ```
 
 ---
 
-## ⚙️ Step-by-Step Setup
+## 🖥️ BACKEND SETUP
 
-### 1. MongoDB Atlas
-1. Go to [mongodb.com/atlas](https://mongodb.com/atlas) → Create free cluster
-2. Whitelist IP: `0.0.0.0/0` (or your server IP)
-3. Create DB user → copy connection string
-4. Paste as `MONGODB_URI` in backend `.env`
+### Prerequisites
+- Node.js 18+
+- MongoDB Atlas account (or local MongoDB)
+- Firebase project (for push notifications)
 
-### 2. Cloudinary
-1. Sign up at [cloudinary.com](https://cloudinary.com)
-2. Dashboard → copy Cloud Name, API Key, API Secret
-3. Paste in backend `.env`
-
-### 3. Firebase (Push Notifications)
-1. Go to [console.firebase.google.com](https://console.firebase.google.com)
-2. Create project → Add Android app (package: `com.chatzz.app`)
-3. Download `google-services.json` → place in `frontend/`
-4. Project Settings → Service accounts → Generate new private key
-5. Save as `backend/config/firebase-service-account.json`
-
-### 4. Backend Setup (Local)
+### Step 1 — Install dependencies
 ```bash
-cd backend
-cp .env.example .env
-# Fill in .env values
+cd chatzz-backend
 npm install
-npm run dev
 ```
 
-### 5. Frontend Setup (Local)
+### Step 2 — Configure environment
 ```bash
-cd frontend
+cp .env.example .env
+```
+
+Edit `.env` with your values:
+```env
+PORT=5000
+MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/chatzz
+JWT_SECRET=your_super_secret_key
+JWT_EXPIRE=30d
+
+# Firebase (get from Firebase Console > Project Settings > Service Accounts > Generate new private key)
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_PRIVATE_KEY_ID=your-private-key-id
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@project.iam.gserviceaccount.com
+FIREBASE_CLIENT_ID=your-client-id
+```
+
+### Step 3 — Start the server
+```bash
+# Development
+npm run dev
+
+# Production
+npm start
+```
+
+Server runs on `http://localhost:5000`
+
+---
+
+## ☁️ BACKEND DEPLOYMENT (Render.com — Free)
+
+1. Push `chatzz-backend/` to a GitHub repo
+2. Go to [render.com](https://render.com) → New Web Service
+3. Connect your GitHub repo
+4. Settings:
+   - **Build command:** `npm install`
+   - **Start command:** `node server.js`
+   - **Environment:** Node
+5. Add all `.env` variables in Render's "Environment" tab
+6. Deploy → Copy your server URL e.g. `https://chatzz-backend.onrender.com`
+
+---
+
+## 📱 FRONTEND SETUP
+
+### Prerequisites
+- Node.js 18+
+- Expo CLI: `npm install -g expo-cli eas-cli`
+- Expo account: [expo.dev](https://expo.dev)
+
+### Step 1 — Install dependencies
+```bash
+cd chatzz-frontend
 npm install
-# Update API_BASE_URL and SOCKET_URL in app/utils/constants.ts
+```
+
+### Step 2 — Configure API URL
+Edit `src/services/api.js`:
+```js
+export const BASE_URL = 'https://your-backend-url.onrender.com';
+```
+
+### Step 3 — Run on device (Expo Go)
+```bash
 npx expo start
 ```
+Scan QR code with Expo Go app.
 
 ---
 
-## 🌐 Deployment
+## 📦 BUILD APK
 
-### Backend → Render.com
-1. Push backend to GitHub
-2. New Web Service on Render → Connect repo
-3. Build command: `npm install`
-4. Start command: `node server.js`
-5. Add all `.env` variables in Render dashboard
-6. Upload `firebase-service-account.json` as a file (or use env var)
-7. Get your service URL (e.g. `https://chatzz-api.onrender.com`)
-8. Update `SOCKET_URL` and `API_BASE_URL` in frontend constants
-
-### Backend → Railway.app
-1. New project → Deploy from GitHub
-2. Add environment variables in Variables tab
-3. Get public URL from Settings
-
-### Frontend → EAS (Expo Application Services)
+### Step 1 — Login to Expo
 ```bash
-npm install -g eas-cli
 eas login
-eas build:configure
-# Update eas.json project ID from expo.dev
-eas build --platform android   # .apk / .aab
-eas build --platform ios       # .ipa
 ```
 
-**Before building:**
-- Replace `YOUR_EAS_PROJECT_ID` in `app.json`
-- Ensure `google-services.json` is in root of `frontend/`
-- Add custom sound: place `chatzz_sound.mp3` in `frontend/assets/`
+### Step 2 — Configure EAS
+```bash
+eas build:configure
+```
+
+This creates `eas.json`. Add a preview profile:
+```json
+{
+  "build": {
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  }
+}
+```
+
+### Step 3 — Build APK
+```bash
+# APK (for direct install)
+eas build -p android --profile preview
+
+# AAB (for Play Store)
+eas build -p android --profile production
+```
+
+Build takes ~10 minutes. Download link provided when complete.
 
 ---
 
-## 🔔 Custom Notification Sound
-1. Add `chatzz_sound.mp3` to `frontend/assets/`
-2. `app.json` already configures this sound for both platforms
-3. Android channel `chatzz_messages` uses this sound
+## 🔔 PUSH NOTIFICATIONS SETUP
+
+### Step 1 — Create Firebase Project
+1. Go to [console.firebase.google.com](https://console.firebase.google.com)
+2. Create new project → "Chatzz"
+3. Add Android app with package: `com.chatzz.app`
+4. Download `google-services.json` → place in `chatzz-frontend/`
+
+### Step 2 — Get Service Account Key
+1. Firebase Console → Project Settings → Service Accounts
+2. Click "Generate new private key"
+3. Add the values to your backend `.env`
+
+### Step 3 — Configure Notification Channel (Android)
+Already configured in `src/services/notifications.js` with channel ID `chatzz_messages`
+
+### Step 4 — Add Custom Notification Sound
+1. Place your sound file as `chatzz-frontend/assets/sounds/notification.wav`
+2. Already referenced in `app.json` and notification channel config
 
 ---
 
-## 🔐 Security Notes
-- Only accepted chat connections can exchange messages
-- Unauthorized socket events are ignored server-side
-- File uploads validated by Cloudinary (format allowlist)
-- User data stored in SecureStore (encrypted on device)
+## 🔒 MONGODB SETUP
+
+### Atlas (Cloud — Recommended)
+1. Go to [mongodb.com/atlas](https://mongodb.com/atlas) → Create free cluster
+2. Database Access → Add user with password
+3. Network Access → Allow `0.0.0.0/0`
+4. Connect → Driver → Copy connection string
+5. Paste in `.env` as `MONGODB_URI`
 
 ---
 
-## 🎨 Theme
-- **Primary:** `#ff0000` (Red)
-- **Background:** `#000000` (Black)
-- **Text:** White
-- **Sent bubbles:** Red
-- **Received bubbles:** Dark grey `#2a2a2a`
-- **Online indicator:** `#00e676` (Green)
+## 🗂️ API ENDPOINTS
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/check-device` | Check if device registered |
+| PUT | `/api/auth/fcm-token` | Update FCM token |
+| GET | `/api/users` | Search all users |
+| GET | `/api/users/requests` | Get pending requests |
+| PUT | `/api/users/profile` | Update profile |
+| POST | `/api/users/:id/request` | Send chat request |
+| PUT | `/api/users/request/:userId/respond` | Accept/reject request |
+| POST | `/api/users/:id/block` | Block user |
+| GET | `/api/chats` | Get all chats |
+| POST | `/api/chats` | Get or create chat |
+| DELETE | `/api/chats/:id` | Delete chat |
+| GET | `/api/messages/:chatId` | Get messages |
+| POST | `/api/messages` | Send message |
+| PUT | `/api/messages/:chatId/seen` | Mark as seen |
+| DELETE | `/api/messages/:id` | Delete message |
+
+---
+
+## 🔌 SOCKET.IO EVENTS
+
+| Event | Direction | Description |
+|-------|-----------|-------------|
+| `send_message` | Client → Server | Send a message |
+| `new_message` | Server → Client | Receive a message |
+| `message_sent` | Server → Client | Confirm message sent |
+| `typing` | Client → Server | Start typing |
+| `stop_typing` | Client → Server | Stop typing |
+| `user_typing` | Server → Client | Someone is typing |
+| `user_stop_typing` | Server → Client | Stop typing |
+| `mark_seen` | Client → Server | Mark messages seen |
+| `messages_seen` | Server → Client | Messages read |
+| `message_delivered` | Server → Client | Message delivered |
+| `delete_message` | Client → Server | Delete a message |
+| `chat_request` | Server → Client | Incoming request |
+| `request_accepted` | Server → Client | Request accepted |
+| `user_online` | Server → Client | User came online |
+| `user_offline` | Server → Client | User went offline |
+
+---
+
+## 🎨 Theme Colors
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `primary` | `#E53935` | Main red — buttons, accents |
+| `primaryDark` | `#B71C1C` | Dark red |
+| `background` | `#0A0A0A` | App background |
+| `surface` | `#1A1A1A` | Cards, headers |
+| `text` | `#FFFFFF` | Main text |
+| `online` | `#4CAF50` | Online indicator |
+
+---
+
+## 🚀 Production Checklist
+
+- [ ] Set `NODE_ENV=production` in backend `.env`
+- [ ] Use strong `JWT_SECRET` (32+ random chars)
+- [ ] Configure MongoDB Atlas IP whitelist
+- [ ] Enable Firebase Authentication
+- [ ] Set `BASE_URL` to production server in `src/services/api.js`
+- [ ] Update `app.json` with real EAS project ID
+- [ ] Add `google-services.json` to frontend root
+- [ ] Build APK with `eas build -p android --profile preview`
+
+---
+
+## 📞 Support
+
+Built for Chatzz by the development team.
+Logo © Chatzz 2025. All rights reserved.

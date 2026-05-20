@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Chatzz",
+    "slug": "chatzz",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo.jpeg",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/images/logo.jpeg",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0A"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.chatzz.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logo.jpeg",
+        "backgroundColor": "#0A0A0A"
+      },
+      "package": "com.chatzz.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "NOTIFICATIONS",
+        "VIBRATE"
+      ],
+      "googleServicesFile": "./google-services.json"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo.jpeg",
+          "color": "#E53935",
+          "sounds": ["./assets/sounds/notification.wav"],
+          "androidMode": "default",
+          "androidCollapsedTitle": "Chatzz"
+        }
+      ],
+      ["expo-image-picker", { "photosPermission": "Allow Chatzz to access your photos" }],
+      ["expo-av", { "microphonePermission": "Allow Chatzz to access your microphone" }]
+    ],
+    "extra": {
+      "eas": { "projectId": "your-eas-project-id" }
+    }
+  }
+}
