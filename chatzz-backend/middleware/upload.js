@@ -2,24 +2,27 @@ const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const multer = require('multer');
 
 const ensureDir = (dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 };
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    let folder = 'uploads/misc';
-    if (file.mimetype.startsWith('image/')) folder = 'uploads/images';
-    else if (file.mimetype.startsWith('audio/')) folder = 'uploads/audio';
-    else folder = 'uploads/documents';
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-    ensureDir(folder);
-    cb(null, folder);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
+
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'chatzz/profiles',
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+    transformation: [{ width: 400, height: 400, crop: 'fill' }],
   },
 });
 
@@ -47,4 +50,5 @@ const upload = multer({
   limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 },
 });
 
-module.exports = upload;
+module.exports = multer({ storage });
+
