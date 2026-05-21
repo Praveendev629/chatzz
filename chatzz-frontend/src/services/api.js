@@ -2,7 +2,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
 // ⚠️ Change this to your backend URL
-export const BASE_URL = 'http://YOUR_SERVER_IP:5000';
+export const BASE_URL = 'https://chatzz-1.onrender.com';
 export const API_URL = `${BASE_URL}/api`;
 
 const api = axios.create({
@@ -48,6 +48,7 @@ export const userAPI = {
   blockUser: (userId) => api.post(`/users/${userId}/block`),
   unblockUser: (userId) => api.delete(`/users/${userId}/block`),
   getRequests: () => api.get('/users/requests'),
+  deleteAccount: () => api.delete('/users/account'),
 };
 
 // ─── Chats ──────────────────────────────────────────────────────────────────

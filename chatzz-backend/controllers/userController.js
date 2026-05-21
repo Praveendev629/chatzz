@@ -240,6 +240,46 @@ const getChatRequests = async (req, res) => {
   }
 };
 
+// @desc    Delete account permanently
+// @route   DELETE /api/users/account
+// @access  Private
+const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Find all chats involving this user
+    const Chat = require('../models/Chat');
+    const Message = require('../models/Message');
+
+    const chats = await Chat.find({ participants: userId });
+    const chatIds = chats.map((c) => c._id);
+
+    // Notify connected users via socket
+    if (req.app.get('io')) {
+      for (const chat of chats) {
+        const otherId = chat.participants.find((p) => p.toString() !== userId.toString());
+        if (otherId) {
+          req.app.get('io').to(otherId.toString()).emit('user_deleted', {
+            userId: userId.toString(),
+            message: `${req.user.username} has deleted their account and is no longer available.`,
+          });
+        }
+      }
+    }
+
+    // Delete messages
+    await Message.deleteMany({ chatId: { $in: chatIds } });
+    // Delete chats
+    await Chat.deleteMany({ participants: userId });
+    // Delete the user
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({ success: true, message: 'Account deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserProfile,
@@ -249,4 +289,5 @@ module.exports = {
   blockUser,
   unblockUser,
   getChatRequests,
+  deleteAccount,
 };

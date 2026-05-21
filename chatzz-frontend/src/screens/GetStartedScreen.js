@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius } from '../theme';
-import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -13,19 +12,19 @@ const features = [
   { icon: 'flash', title: 'Real-time Messaging', desc: 'Instant delivery with WebSocket technology' },
   { icon: 'shield-checkmark', title: 'Private & Secure', desc: 'Your conversations stay between you' },
   { icon: 'mic', title: 'Voice Messages', desc: 'Record and send audio messages easily' },
-  { icon: 'notifications', title: 'Smart Notifications', desc: 'Never miss a message' },
+  { icon: 'call', title: 'Voice Calls', desc: 'Crystal clear voice calls anytime' },
 ];
 
 const GetStartedScreen = ({ navigation }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
   const logoScale = useRef(new Animated.Value(0.5)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.spring(logoScale, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
-      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
     ]).start();
   }, []);
 
@@ -33,12 +32,17 @@ const GetStartedScreen = ({ navigation }) => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
 
-      {/* Background gradient circles */}
+      {/* Background circles */}
       <View style={styles.bgCircle1} />
       <View style={styles.bgCircle2} />
 
-      <Animated.View style={[styles.logoContainer, { transform: [{ scale: logoScale }] }]}>
-        <Image source={require('../../assets/images/logo.jpeg')} style={styles.logo} />
+      {/* Logo */}
+      <Animated.View style={[styles.logoContainer, { transform: [{ scale: logoScale }], opacity: fadeAnim }]}>
+        <Image
+          source={require('../../assets/images/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </Animated.View>
 
       <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
@@ -75,7 +79,10 @@ const GetStartedScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' },
+  container: {
+    flex: 1, backgroundColor: Colors.background,
+    alignItems: 'center', justifyContent: 'center',
+  },
   bgCircle1: {
     position: 'absolute', top: -100, right: -100,
     width: 300, height: 300, borderRadius: 150,
@@ -84,16 +91,18 @@ const styles = StyleSheet.create({
   bgCircle2: {
     position: 'absolute', bottom: -50, left: -80,
     width: 250, height: 250, borderRadius: 125,
-    backgroundColor: Colors.primaryDark, opacity: 0.1,
+    backgroundColor: Colors.primaryDark, opacity: 0.10,
   },
   logoContainer: {
-    width: 120, height: 120, borderRadius: 60,
+    width: 120, height: 120, borderRadius: 30,
     overflow: 'hidden', marginBottom: Spacing.lg,
     borderWidth: 3, borderColor: Colors.primary,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center', justifyContent: 'center',
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5, shadowRadius: 20, elevation: 10,
   },
-  logo: { width: '100%', height: '100%' },
+  logo: { width: 90, height: 90 },
   content: { alignItems: 'center', paddingHorizontal: Spacing.xl, width: '100%' },
   appName: { fontSize: 42, fontWeight: '900', color: Colors.text, letterSpacing: 2 },
   tagline: { fontSize: 15, color: Colors.textSecondary, marginTop: 4, marginBottom: Spacing.xl },

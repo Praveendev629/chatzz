@@ -1,6 +1,7 @@
-# 🔴 Chatzz — Real-time Chat Application
+# 📱 Chatzz — Setup & Developer Guide
 
-> WhatsApp-like chat app built with Expo React Native + Node.js + MongoDB + Socket.io
+> A real-time chat app built with React Native (Expo) + Node.js + Socket.IO + MongoDB.
+> **A product from P.S**
 
 ---
 
@@ -8,247 +9,348 @@
 
 ```
 chatzz/
-├── chatzz-backend/      ← Node.js + Express + MongoDB + Socket.io
-└── chatzz-frontend/     ← Expo React Native (Android APK)
+├── chatzz-backend/      ← Node.js + Express + Socket.IO backend
+└── chatzz-frontend/     ← React Native (Expo) mobile app
 ```
 
 ---
 
-## 🖥️ BACKEND SETUP
+## 🚀 Backend Setup
 
 ### Prerequisites
-- Node.js 18+
+- Node.js ≥ 18
 - MongoDB Atlas account (or local MongoDB)
 - Firebase project (for push notifications)
 
-### Step 1 — Install dependencies
+### 1. Install dependencies
 ```bash
 cd chatzz-backend
 npm install
 ```
 
-### Step 2 — Configure environment
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your values:
+### 2. Configure environment
+Edit `.env` (already exists):
 ```env
 PORT=5000
-MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/chatzz
-JWT_SECRET=your_super_secret_key
-JWT_EXPIRE=30d
+MONGO_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/chatzz
+JWT_SECRET=your_jwt_secret_here
+JWT_EXPIRE=90d
 
-# Firebase (get from Firebase Console > Project Settings > Service Accounts > Generate new private key)
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_PRIVATE_KEY_ID=your-private-key-id
+# Firebase service account (for push notifications)
+FIREBASE_PROJECT_ID=your_project_id
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@project.iam.gserviceaccount.com
-FIREBASE_CLIENT_ID=your-client-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@your-project.iam.gserviceaccount.com
 ```
 
-### Step 3 — Start the server
+### 3. Start the server
 ```bash
-# Development
-npm run dev
-
-# Production
 npm start
+# or for development with auto-restart:
+npm run dev
 ```
 
-Server runs on `http://localhost:5000`
+The server runs at `http://localhost:5000`.
 
 ---
 
-## ☁️ BACKEND DEPLOYMENT (Render.com — Free)
-
-1. Push `chatzz-backend/` to a GitHub repo
-2. Go to [render.com](https://render.com) → New Web Service
-3. Connect your GitHub repo
-4. Settings:
-   - **Build command:** `npm install`
-   - **Start command:** `node server.js`
-   - **Environment:** Node
-5. Add all `.env` variables in Render's "Environment" tab
-6. Deploy → Copy your server URL e.g. `https://chatzz-backend.onrender.com`
-
----
-
-## 📱 FRONTEND SETUP
+## 📱 Frontend Setup
 
 ### Prerequisites
-- Node.js 18+
-- Expo CLI: `npm install -g expo-cli eas-cli`
-- Expo account: [expo.dev](https://expo.dev)
+- Node.js ≥ 18
+- Expo CLI: `npm install -g expo-cli`
+- Expo Go app (for testing) OR Expo Development Build (for calls)
 
-### Step 1 — Install dependencies
+### 1. Install dependencies
 ```bash
 cd chatzz-frontend
 npm install
 ```
 
-### Step 2 — Configure API URL
+### 2. Set your backend URL
 Edit `src/services/api.js`:
 ```js
-export const BASE_URL = 'https://your-backend-url.onrender.com';
+export const BASE_URL = 'https://your-backend-url.com';  // or http://192.168.x.x:5000
 ```
 
-### Step 3 — Run on device (Expo Go)
+### 3. Start the app
 ```bash
 npx expo start
 ```
-Scan QR code with Expo Go app.
+
+Scan the QR code with Expo Go (Android/iOS).
 
 ---
 
-## 📦 BUILD APK
-
-### Step 1 — Login to Expo
-```bash
-eas login
-```
-
-### Step 2 — Configure EAS
-```bash
-eas build:configure
-```
-
-This creates `eas.json`. Add a preview profile:
-```json
-{
-  "build": {
-    "preview": {
-      "android": {
-        "buildType": "apk"
-      }
-    },
-    "production": {
-      "android": {
-        "buildType": "app-bundle"
-      }
-    }
-  }
-}
-```
-
-### Step 3 — Build APK
-```bash
-# APK (for direct install)
-eas build -p android --profile preview
-
-# AAB (for Play Store)
-eas build -p android --profile production
-```
-
-Build takes ~10 minutes. Download link provided when complete.
-
----
-
-## 🔔 PUSH NOTIFICATIONS SETUP
+## 🔔 Push Notifications Setup (Firebase)
 
 ### Step 1 — Create Firebase Project
-1. Go to [console.firebase.google.com](https://console.firebase.google.com)
-2. Create new project → "Chatzz"
-3. Add Android app with package: `com.chatzz.app`
+1. Go to [Firebase Console](https://console.firebase.google.com)
+2. Create a new project → "Chatzz"
+3. Add an Android app → package name: `com.yourname.chatzz`
 4. Download `google-services.json` → place in `chatzz-frontend/`
 
-### Step 2 — Get Service Account Key
+### Step 2 — Get Service Account Key (Backend)
 1. Firebase Console → Project Settings → Service Accounts
-2. Click "Generate new private key"
-3. Add the values to your backend `.env`
+2. Click "Generate new private key" → download JSON
+3. Copy values to your `.env`:
+   - `FIREBASE_PROJECT_ID`
+   - `FIREBASE_PRIVATE_KEY`
+   - `FIREBASE_CLIENT_EMAIL`
 
-### Step 3 — Configure Notification Channel (Android)
-Already configured in `src/services/notifications.js` with channel ID `chatzz_messages`
-
-### Step 4 — Add Custom Notification Sound
-1. Place your sound file as `chatzz-frontend/assets/sounds/notification.wav`
-2. Already referenced in `app.json` and notification channel config
-
----
-
-## 🔒 MONGODB SETUP
-
-### Atlas (Cloud — Recommended)
-1. Go to [mongodb.com/atlas](https://mongodb.com/atlas) → Create free cluster
-2. Database Access → Add user with password
-3. Network Access → Allow `0.0.0.0/0`
-4. Connect → Driver → Copy connection string
-5. Paste in `.env` as `MONGODB_URI`
+### Step 3 — Configure Notification Channel
+The app automatically creates the `chatzz_messages` channel on Android.
+Notifications work for:
+- ✅ New messages (even when app is in background)
+- ✅ Chat requests
+- ✅ Call incoming alerts
 
 ---
 
-## 🗂️ API ENDPOINTS
+## 📞 Voice Call Feature Setup
 
-| Method | Route | Description |
-|--------|-------|-------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/check-device` | Check if device registered |
-| PUT | `/api/auth/fcm-token` | Update FCM token |
-| GET | `/api/users` | Search all users |
-| GET | `/api/users/requests` | Get pending requests |
-| PUT | `/api/users/profile` | Update profile |
-| POST | `/api/users/:id/request` | Send chat request |
-| PUT | `/api/users/request/:userId/respond` | Accept/reject request |
-| POST | `/api/users/:id/block` | Block user |
-| GET | `/api/chats` | Get all chats |
-| POST | `/api/chats` | Get or create chat |
-| DELETE | `/api/chats/:id` | Delete chat |
-| GET | `/api/messages/:chatId` | Get messages |
-| POST | `/api/messages` | Send message |
-| PUT | `/api/messages/:chatId/seen` | Mark as seen |
-| DELETE | `/api/messages/:id` | Delete message |
+The voice call feature uses **WebRTC** for peer-to-peer audio and **Socket.IO** for signaling.
+
+> ⚠️ **Important:** `react-native-webrtc` does NOT work in Expo Go.  
+> You need an **Expo Development Build** or **bare workflow**.
+
+### Option A — Expo Development Build (Recommended)
+
+#### Step 1 — Install react-native-webrtc
+```bash
+cd chatzz-frontend
+npx expo install react-native-webrtc
+```
+
+#### Step 2 — Create development build
+```bash
+# Install EAS CLI
+npm install -g eas-cli
+
+# Login
+eas login
+
+# Configure
+eas build:configure
+
+# Build for Android (APK for testing)
+eas build -p android --profile preview
+
+# Or build for iOS
+eas build -p ios
+```
+
+#### Step 3 — Install on device
+- Download the APK from EAS dashboard
+- Install it on your Android device
+- The call button in the chat header will now work!
+
+### Option B — Agora SDK (Alternative)
+
+If you prefer a managed service:
+
+```bash
+npm install react-native-agora
+```
+
+Then replace the `CallScreen.js` WebRTC logic with Agora's `RtcEngine`. See [Agora React Native Docs](https://docs.agora.io/en/Video/start_call_react_native).
+
+### How Calls Work
+1. User A taps 📞 in ChatScreen → `CallScreen` opens → emits `call_offer` via Socket
+2. Backend relays offer to User B
+3. User B's `HomeScreen` receives `call_offer` → navigates to `CallScreen` (incoming mode)
+4. User B taps Accept → `call_answer` is sent back
+5. ICE candidates are exchanged → WebRTC peer connection established
+6. Direct peer-to-peer audio streams
+
+### STUN/TURN Servers
+The app uses Google's public STUN servers by default. For production:
+```js
+// In CallScreen.js, update ICE_SERVERS:
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    // Add a TURN server for NAT traversal:
+    {
+      urls: 'turn:your-turn-server.com:3478',
+      username: 'your-username',
+      credential: 'your-password',
+    },
+  ],
+};
+```
+
+Free TURN server options: [Metered.ca](https://www.metered.ca/tools/openrelay/), [Twilio](https://www.twilio.com/docs/stun-turn)
 
 ---
 
-## 🔌 SOCKET.IO EVENTS
+## 💾 Profile Picture Persistence
 
-| Event | Direction | Description |
-|-------|-----------|-------------|
-| `send_message` | Client → Server | Send a message |
-| `new_message` | Server → Client | Receive a message |
-| `message_sent` | Server → Client | Confirm message sent |
-| `typing` | Client → Server | Start typing |
-| `stop_typing` | Client → Server | Stop typing |
-| `user_typing` | Server → Client | Someone is typing |
-| `user_stop_typing` | Server → Client | Stop typing |
-| `mark_seen` | Client → Server | Mark messages seen |
-| `messages_seen` | Server → Client | Messages read |
-| `message_delivered` | Server → Client | Message delivered |
-| `delete_message` | Client → Server | Delete a message |
-| `chat_request` | Server → Client | Incoming request |
-| `request_accepted` | Server → Client | Request accepted |
-| `user_online` | Server → Client | User came online |
-| `user_offline` | Server → Client | User went offline |
+Profile pictures are stored in **two places**:
+1. **Server** — uploaded to `/uploads/images/` on your server
+2. **Device** — cached locally at `FileSystem.documentDirectory + 'chatzz_profile.jpg'`
+
+> ⚠️ **Render.com Free Tier**: The filesystem is ephemeral. Profile pictures uploaded to Render will be lost on server restart.
+
+### Solution — Use Cloud Storage (Cloudinary)
+
+#### Step 1 — Create Cloudinary account
+Go to [cloudinary.com](https://cloudinary.com) (free tier available)
+
+#### Step 2 — Install SDK
+```bash
+cd chatzz-backend
+npm install cloudinary multer-storage-cloudinary
+```
+
+#### Step 3 — Update upload middleware (`middleware/upload.js`):
+```js
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const multer = require('multer');
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'chatzz/profiles',
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+    transformation: [{ width: 400, height: 400, crop: 'fill' }],
+  },
+});
+
+module.exports = multer({ storage });
+```
+
+#### Step 4 — Add to `.env`:
+```env
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+```
 
 ---
 
-## 🎨 Theme Colors
+## 🎨 Features Summary
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `primary` | `#E53935` | Main red — buttons, accents |
-| `primaryDark` | `#B71C1C` | Dark red |
-| `background` | `#0A0A0A` | App background |
-| `surface` | `#1A1A1A` | Cards, headers |
-| `text` | `#FFFFFF` | Main text |
-| `online` | `#4CAF50` | Online indicator |
-
----
-
-## 🚀 Production Checklist
-
-- [ ] Set `NODE_ENV=production` in backend `.env`
-- [ ] Use strong `JWT_SECRET` (32+ random chars)
-- [ ] Configure MongoDB Atlas IP whitelist
-- [ ] Enable Firebase Authentication
-- [ ] Set `BASE_URL` to production server in `src/services/api.js`
-- [ ] Update `app.json` with real EAS project ID
-- [ ] Add `google-services.json` to frontend root
-- [ ] Build APK with `eas build -p android --profile preview`
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Splash Screen (WhatsApp-style) | ✅ | No animation, clean brand |
+| Get Started Screen | ✅ | Fixed logo bug |
+| Theme Switching | ✅ | Fixed save error |
+| Notification Toggles | ✅ | Properly wired to backend |
+| Profile Picture Persistence | ✅ | Local + server cache |
+| Real-time Messages | ✅ | Fixed socket reconnect |
+| Message Notifications | ✅ | Local + push notifications |
+| Voice Calls | ✅ | WebRTC (needs dev build) |
+| Hidden Delete Account | ✅ | Tap "Developed by Praveen" 5× |
+| Account Deletion Notification | ✅ | Connected users notified via socket |
 
 ---
 
-## 📞 Support
+## 🗑️ Delete Account (Hidden Feature)
 
-Built for Chatzz by the development team.
-Logo © Chatzz 2025. All rights reserved.
+In **Settings**, scroll to the bottom and tap **"Developed by Praveen"** watermark **5 times**.  
+A "Danger Zone" section will appear with the Delete Account option.
+
+When deleted:
+- All messages and chats are permanently removed from the database
+- All connected users receive a socket event `user_deleted` and are notified
+- The account cannot be recovered
+
+---
+
+## 🛠️ Development Commands
+
+### Backend
+```bash
+npm start          # Production
+npm run dev        # Development (nodemon)
+```
+
+### Frontend
+```bash
+npx expo start             # Start dev server
+npx expo start --clear     # Clear cache
+npx expo start --android   # Open in Android emulator
+eas build -p android --profile preview   # Build APK
+```
+
+---
+
+## 🌐 Deployment
+
+### Backend (Render.com)
+1. Push code to GitHub
+2. Create new Web Service on Render
+3. Connect your repo → `chatzz-backend` as root
+4. Build command: `npm install`
+5. Start command: `node server.js`
+6. Add environment variables in Render dashboard
+
+### Frontend (Expo EAS)
+1. `eas build -p android` for Play Store
+2. `eas submit -p android` to submit to Play Store
+
+---
+
+## 📦 Dependencies
+
+### Frontend
+| Package | Purpose |
+|---------|---------|
+| `expo` | App framework |
+| `socket.io-client` | Real-time communication |
+| `expo-notifications` | Push & local notifications |
+| `expo-file-system` | Persistent profile picture storage |
+| `expo-secure-store` | Secure token storage |
+| `expo-av` | Audio recording/playback |
+| `react-native-webrtc` | Voice calls (dev build only) |
+
+### Backend
+| Package | Purpose |
+|---------|---------|
+| `express` | HTTP server |
+| `socket.io` | Real-time events |
+| `mongoose` | MongoDB ODM |
+| `firebase-admin` | Push notifications |
+| `jsonwebtoken` | Authentication |
+| `multer` | File uploads |
+
+---
+
+## 🐛 Common Issues
+
+### "Socket not connecting"
+- Make sure `BASE_URL` in `api.js` is correct
+- Check that your backend is running and accessible
+- For physical devices, use your PC's local IP (not `localhost`)
+
+### "Profile picture not showing after restart"
+- The local cache at `FileSystem.documentDirectory` persists between app restarts
+- If server URL is broken, the local cache is used as fallback
+- For permanent server storage, use Cloudinary (see above)
+
+### "Call button not working"
+- Voice calls require `react-native-webrtc` which needs a development build
+- See the **Voice Call Setup** section above
+
+### "Notifications not arriving"
+- Physical device required (not simulator)
+- Ensure FCM token is registered (`registerForPushNotifications` in AuthContext)
+- Check Firebase service account credentials in `.env`
+
+---
+
+## 👨‍💻 Developer
+
+**Developed by Praveen**  
+A product from P.S
+
+---
+
+*Chatzz v1.0.0 — Production Ready*

@@ -7,51 +7,94 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { chatAPI, userAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { getSocket } from '../services/socket';
+import { useSocket } from '../context/SocketContext';
+import { scheduleLocalNotification } from '../services/notifications';
 import ChatListItem from '../components/ChatListItem';
 import { Colors, Spacing } from '../theme';
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
+  const { on, off } = useSocket();
   const [chats, setChats] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Track currently open chat so we don't double-notify
+  const activeChatId = useRef(null);
+
   useFocusEffect(
     useCallback(() => {
+      activeChatId.current = null; // back on home, no active chat
       fetchChats();
       fetchRequests();
     }, [])
   );
 
   useEffect(() => {
-    const socket = getSocket();
-    if (!socket) return;
-
     const handleNewMessage = (message) => {
+      // Update chat list in real-time
       setChats((prev) => {
-        return prev.map((c) => {
+        const updated = prev.map((c) => {
           if (c._id === message.chatId) {
             return { ...c, lastMessage: message, lastMessageAt: message.createdAt };
           }
           return c;
         }).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt));
+        return updated;
       });
+
+      // Show local notification if this chat is NOT currently open
+      if (message.chatId !== activeChatId.current) {
+        const senderName = message.sender?.username || 'Someone';
+        const body =
+          message.messageType === 'text'
+            ? message.content
+            : message.messageType === 'image'
+            ? '📷 Image'
+            : message.messageType === 'audio'
+            ? '🎤 Voice message'
+            : '📎 File';
+
+        scheduleLocalNotification({
+          title: senderName,
+          body,
+          data: { type: 'message', chatId: message.chatId },
+        });
+      }
     };
 
     const handleChatRequest = (data) => {
-      setRequests((prev) => [...prev, data]);
+      setRequests((prev) => {
+        // Avoid duplicates
+        if (prev.find((r) => r.from._id === data.from._id)) return prev;
+        return [...prev, data];
+      });
+      scheduleLocalNotification({
+        title: 'New Chat Request',
+        body: `${data.from.username} wants to chat with you`,
+        data: { type: 'chat_request', userId: data.from._id },
+      });
     };
 
-    socket.on('new_message', handleNewMessage);
-    socket.on('chat_request', handleChatRequest);
+    const handleIncomingCall = (data) => {
+      navigation.navigate('Call', {
+        participant: data.caller,
+        isIncoming: true,
+        offer: data.offer,
+      });
+    };
+
+    on('new_message', handleNewMessage);
+    on('chat_request', handleChatRequest);
+    on('call_offer', handleIncomingCall);
 
     return () => {
-      socket.off('new_message', handleNewMessage);
-      socket.off('chat_request', handleChatRequest);
+      off('new_message', handleNewMessage);
+      off('chat_request', handleChatRequest);
+      off('call_offer', handleIncomingCall);
     };
-  }, []);
+  }, [on, off]);
 
   const fetchChats = async () => {
     try {
@@ -92,9 +135,9 @@ const HomeScreen = ({ navigation }) => {
         text: 'Block', style: 'destructive',
         onPress: async () => {
           await userAPI.blockUser(userId);
-          setChats((prev) => prev.filter((c) =>
-            !c.participants.some((p) => p._id === userId)
-          ));
+          setChats((prev) =>
+            prev.filter((c) => !c.participants.some((p) => p._id === userId))
+          );
         },
       },
     ]);
@@ -112,10 +155,8 @@ const HomeScreen = ({ navigation }) => {
 
   const openChat = (chat) => {
     const otherParticipant = chat.participants.find((p) => p._id !== user._id);
-    navigation.navigate('Chat', {
-      chatId: chat._id,
-      participant: otherParticipant,
-    });
+    activeChatId.current = chat._id;
+    navigation.navigate('Chat', { chatId: chat._id, participant: otherParticipant });
   };
 
   return (
@@ -139,15 +180,12 @@ const HomeScreen = ({ navigation }) => {
           <Text style={styles.requestsBannerText}>
             {requests.length} pending chat request{requests.length > 1 ? 's' : ''}
           </Text>
-          <TouchableOpacity onPress={() => {/* Show requests modal */}}>
-            <Text style={styles.requestsBannerAction}>View</Text>
-          </TouchableOpacity>
         </View>
       )}
 
       {/* Requests List */}
       {requests.map((req) => (
-        <View key={req._id} style={styles.requestCard}>
+        <View key={req._id || req.from._id} style={styles.requestCard}>
           <Ionicons name="person-circle" size={36} color={Colors.primary} />
           <View style={styles.requestInfo}>
             <Text style={styles.requestName}>{req.from.username}</Text>
@@ -234,7 +272,6 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.lg, marginTop: Spacing.md, borderRadius: 12,
   },
   requestsBannerText: { flex: 1, marginLeft: 8, color: Colors.text, fontSize: 14 },
-  requestsBannerAction: { color: Colors.primary, fontWeight: '700' },
   requestCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.card, marginHorizontal: Spacing.lg,

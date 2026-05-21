@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Alert, Animated, Image,
+  KeyboardAvoidingView, Platform, Alert, Image,
   ActivityIndicator, StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
-import { messageAPI, BASE_URL } from '../services/api';
+import { messageAPI } from '../services/api';
 import { getSocket, emitSendMessage, emitTyping, emitStopTyping, emitMarkSeen } from '../services/socket';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import MessageBubble from '../components/MessageBubble';
 import TypingIndicator from '../components/TypingIndicator';
 import { Colors, Spacing, BorderRadius } from '../theme';
@@ -18,6 +19,7 @@ import { Colors, Spacing, BorderRadius } from '../theme';
 const ChatScreen = ({ route, navigation }) => {
   const { chatId, participant } = route.params;
   const { user } = useAuth();
+  const { on, off } = useSocket();
 
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
@@ -33,9 +35,74 @@ const ChatScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     fetchMessages();
-    setupSocketListeners();
-    return () => cleanupSocket();
-  }, []);
+
+    const handleNewMessage = (msg) => {
+      if (msg.chatId !== chatId) return;
+      setMessages((prev) => {
+        if (prev.find((m) => m._id === msg._id)) return prev;
+        return [...prev, msg];
+      });
+      markSeen();
+      scrollToBottom();
+    };
+
+    const handleMessageSent = ({ tempId, message }) => {
+      setMessages((prev) =>
+        prev.map((m) => (m._id === tempId ? { ...message } : m))
+      );
+    };
+
+    const handleTyping = ({ chatId: cId }) => {
+      if (cId === chatId) setIsTyping(true);
+    };
+
+    const handleStopTyping = ({ chatId: cId }) => {
+      if (cId === chatId) setIsTyping(false);
+    };
+
+    const handleMessagesSeen = ({ chatId: cId }) => {
+      if (cId !== chatId) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.sender?._id === user._id ? { ...m, status: 'seen' } : m
+        )
+      );
+    };
+
+    const handleMessageDelivered = ({ messageId }) => {
+      setMessages((prev) =>
+        prev.map((m) => (m._id === messageId ? { ...m, status: 'delivered' } : m))
+      );
+    };
+
+    const handleDeletedEveryone = ({ messageId }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m._id === messageId ? { ...m, deletedForEveryone: true, content: '' } : m
+        )
+      );
+    };
+
+    on('new_message', handleNewMessage);
+    on('message_sent', handleMessageSent);
+    on('user_typing', handleTyping);
+    on('user_stop_typing', handleStopTyping);
+    on('messages_seen', handleMessagesSeen);
+    on('message_delivered', handleMessageDelivered);
+    on('message_deleted_everyone', handleDeletedEveryone);
+
+    return () => {
+      off('new_message', handleNewMessage);
+      off('message_sent', handleMessageSent);
+      off('user_typing', handleTyping);
+      off('user_stop_typing', handleStopTyping);
+      off('messages_seen', handleMessagesSeen);
+      off('message_delivered', handleMessageDelivered);
+      off('message_deleted_everyone', handleDeletedEveryone);
+      clearTimeout(typingTimeout.current);
+      clearInterval(durationInterval.current);
+    };
+  }, [chatId]);
 
   const fetchMessages = async () => {
     try {
@@ -51,79 +118,6 @@ const ChatScreen = ({ route, navigation }) => {
 
   const markSeen = () => {
     emitMarkSeen({ chatId, senderId: participant._id });
-  };
-
-  const setupSocketListeners = () => {
-    const socket = getSocket();
-    if (!socket) return;
-
-    socket.on('new_message', handleNewMessage);
-    socket.on('message_sent', handleMessageSent);
-    socket.on('user_typing', handleTyping);
-    socket.on('user_stop_typing', handleStopTyping);
-    socket.on('messages_seen', handleMessagesSeen);
-    socket.on('message_delivered', handleMessageDelivered);
-    socket.on('message_deleted_everyone', handleDeletedEveryone);
-  };
-
-  const cleanupSocket = () => {
-    const socket = getSocket();
-    if (!socket) return;
-    socket.off('new_message', handleNewMessage);
-    socket.off('message_sent', handleMessageSent);
-    socket.off('user_typing', handleTyping);
-    socket.off('user_stop_typing', handleStopTyping);
-    socket.off('messages_seen', handleMessagesSeen);
-    socket.off('message_delivered', handleMessageDelivered);
-    socket.off('message_deleted_everyone', handleDeletedEveryone);
-    clearTimeout(typingTimeout.current);
-  };
-
-  const handleNewMessage = (msg) => {
-    if (msg.chatId !== chatId) return;
-    setMessages((prev) => {
-      if (prev.find((m) => m._id === msg._id)) return prev;
-      return [...prev, msg];
-    });
-    markSeen();
-    scrollToBottom();
-  };
-
-  const handleMessageSent = ({ tempId, message }) => {
-    setMessages((prev) =>
-      prev.map((m) => (m._id === tempId ? { ...message } : m))
-    );
-  };
-
-  const handleTyping = ({ chatId: cId }) => {
-    if (cId === chatId) setIsTyping(true);
-  };
-
-  const handleStopTyping = ({ chatId: cId }) => {
-    if (cId === chatId) setIsTyping(false);
-  };
-
-  const handleMessagesSeen = ({ chatId: cId }) => {
-    if (cId !== chatId) return;
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.sender?._id === user._id ? { ...m, status: 'seen' } : m
-      )
-    );
-  };
-
-  const handleMessageDelivered = ({ messageId }) => {
-    setMessages((prev) =>
-      prev.map((m) => (m._id === messageId ? { ...m, status: 'delivered' } : m))
-    );
-  };
-
-  const handleDeletedEveryone = ({ messageId }) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m._id === messageId ? { ...m, deletedForEveryone: true, content: '' } : m
-      )
-    );
   };
 
   const scrollToBottom = () => {
@@ -273,7 +267,6 @@ const ChatScreen = ({ route, navigation }) => {
         onPress: () => deleteMessage(message._id, true),
       });
     }
-
     options.push({ text: 'Cancel', style: 'cancel' });
     Alert.alert('Message Options', '', options);
   };
@@ -293,6 +286,13 @@ const ChatScreen = ({ route, navigation }) => {
     } else {
       setMessages((prev) => prev.filter((m) => m._id !== messageId));
     }
+  };
+
+  const startVoiceCall = () => {
+    navigation.navigate('Call', {
+      participant,
+      isIncoming: false,
+    });
   };
 
   const formatDuration = (secs) => {
@@ -341,10 +341,18 @@ const ChatScreen = ({ route, navigation }) => {
         </View>
 
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerActionBtn}>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={startVoiceCall}>
             <Ionicons name="call-outline" size={22} color={Colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerActionBtn}>
+          <TouchableOpacity
+            style={styles.headerActionBtn}
+            onPress={() =>
+              Alert.alert('Options', '', [
+                { text: 'Clear Chat', onPress: () => {} },
+                { text: 'Cancel', style: 'cancel' },
+              ])
+            }
+          >
             <Ionicons name="ellipsis-vertical" size={22} color={Colors.text} />
           </TouchableOpacity>
         </View>
@@ -383,13 +391,16 @@ const ChatScreen = ({ route, navigation }) => {
           </View>
         ) : (
           <>
-            <TouchableOpacity style={styles.attachBtn} onPress={() =>
-              Alert.alert('Attach', '', [
-                { text: 'Image', onPress: sendImageMessage },
-                { text: 'Document', onPress: sendDocumentMessage },
-                { text: 'Cancel', style: 'cancel' },
-              ])
-            }>
+            <TouchableOpacity
+              style={styles.attachBtn}
+              onPress={() =>
+                Alert.alert('Attach', '', [
+                  { text: 'Image', onPress: sendImageMessage },
+                  { text: 'Document', onPress: sendDocumentMessage },
+                  { text: 'Cancel', style: 'cancel' },
+                ])
+              }
+            >
               <Ionicons name="attach" size={24} color={Colors.textSecondary} />
             </TouchableOpacity>
 

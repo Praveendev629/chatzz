@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../context/AuthContext';
 import { Colors } from '../theme';
 
+import SplashScreen from '../screens/SplashScreen';
 import GetStartedScreen from '../screens/GetStartedScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -15,6 +16,7 @@ import SearchScreen from '../screens/SearchScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import ChatScreen from '../screens/ChatScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import CallScreen from '../screens/CallScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -34,7 +36,7 @@ const TabNavigator = () => (
       tabBarActiveTintColor: Colors.primary,
       tabBarInactiveTintColor: Colors.textMuted,
       tabBarShowLabel: false,
-      tabBarIcon: ({ focused, color, size }) => {
+      tabBarIcon: ({ focused, color }) => {
         let iconName;
         if (route.name === 'Home') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
         else if (route.name === 'Search') iconName = focused ? 'search' : 'search-outline';
@@ -51,34 +53,37 @@ const TabNavigator = () => (
 
 const AppNavigator = () => {
   const { user, loading, isNewUser } = useAuth();
+  const [splashDone, setSplashDone] = useState(false);
 
-  if (loading) {
-    return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
+  // Show WhatsApp-style splash while auth is loading OR just after launch
+  if (loading || !splashDone) {
+    return <SplashScreen onFinish={() => setSplashDone(true)} />;
   }
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+        }}
+      >
         {!user ? (
-          isNewUser ? (
-            <>
-              <Stack.Screen name="GetStarted" component={GetStartedScreen} />
-              <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-            </>
-          ) : null
+          <>
+            <Stack.Screen name="GetStarted" component={GetStartedScreen} />
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+          </>
         ) : (
           <>
             <Stack.Screen name="Main" component={TabNavigator} />
             <Stack.Screen name="Chat" component={ChatScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen
+              name="Call"
+              component={CallScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
           </>
-        )}
-        {!user && !isNewUser && (
-          <Stack.Screen name="GetStarted" component={GetStartedScreen} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

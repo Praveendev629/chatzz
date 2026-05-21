@@ -1,18 +1,19 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Message = require('../models/Message');
+const { sendPushNotification } = require('../config/firebase');
 
 const onlineUsers = new Map(); // userId -> socketId
 
 const socketHandler = (io) => {
-  // Auth middleware for socket
+  // Auth middleware
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token;
       if (!token) return next(new Error('Authentication error'));
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id).select('_id username profilePicture');
+      const user = await User.findById(decoded.id).select('_id username profilePicture fcmToken');
       if (!user) return next(new Error('User not found'));
 
       socket.user = user;
@@ -26,21 +27,13 @@ const socketHandler = (io) => {
     const userId = socket.user._id.toString();
     console.log(`🔌 User connected: ${socket.user.username} (${userId})`);
 
-    // Store socket
     onlineUsers.set(userId, socket.id);
-
-    // Join personal room
     socket.join(userId);
 
-    // Update online status
     await User.findByIdAndUpdate(userId, { isOnline: true, lastSeen: new Date() });
-
-    // Broadcast online status to contacts
     socket.broadcast.emit('user_online', { userId, isOnline: true });
 
-    // ─── Events ───────────────────────────────────────────────────────────────
-
-    // Send message
+    // ─── Send Message ──────────────────────────────────────────────────────────
     socket.on('send_message', async (data) => {
       try {
         const { chatId, receiverId, messageType, content, fileUrl, fileName, tempId } = data;
@@ -70,37 +63,51 @@ const socketHandler = (io) => {
         // Confirm to sender
         socket.emit('message_sent', { tempId, message: populated });
 
-        // Deliver to receiver
-        const receiverSocketId = onlineUsers.get(receiverId);
-        if (receiverSocketId) {
+        // Deliver to receiver via socket
+        const receiverOnline = onlineUsers.has(receiverId);
+        if (receiverOnline) {
           io.to(receiverId).emit('new_message', populated);
-
-          // Mark as delivered
           await Message.findByIdAndUpdate(message._id, {
             status: 'delivered',
             deliveredAt: new Date(),
           });
           socket.emit('message_delivered', { messageId: message._id });
         }
+
+        // ── Push notification to receiver (even if online, for background state) ──
+        const receiver = await User.findById(receiverId).select('fcmToken');
+        if (receiver?.fcmToken) {
+          const notifBody =
+            messageType === 'text'
+              ? content
+              : messageType === 'image'
+              ? '📷 sent a photo'
+              : messageType === 'audio'
+              ? '🎤 sent a voice message'
+              : '📎 sent a file';
+
+          await sendPushNotification({
+            token: receiver.fcmToken,
+            title: socket.user.username,
+            body: notifBody,
+            data: { type: 'message', chatId, senderId: userId },
+          }).catch((e) => console.warn('Push notification error:', e.message));
+        }
       } catch (err) {
         socket.emit('message_error', { error: err.message });
       }
     });
 
-    // Typing indicator
+    // ─── Typing ────────────────────────────────────────────────────────────────
     socket.on('typing', ({ chatId, receiverId }) => {
-      io.to(receiverId).emit('user_typing', {
-        chatId,
-        userId,
-        username: socket.user.username,
-      });
+      io.to(receiverId).emit('user_typing', { chatId, userId, username: socket.user.username });
     });
 
     socket.on('stop_typing', ({ chatId, receiverId }) => {
       io.to(receiverId).emit('user_stop_typing', { chatId, userId });
     });
 
-    // Mark messages as seen
+    // ─── Mark Seen ─────────────────────────────────────────────────────────────
     socket.on('mark_seen', async ({ chatId, senderId }) => {
       await Message.updateMany(
         { chatId, receiver: userId, status: { $ne: 'seen' } },
@@ -109,7 +116,7 @@ const socketHandler = (io) => {
       io.to(senderId).emit('messages_seen', { chatId, seenBy: userId });
     });
 
-    // Delete message
+    // ─── Delete Message ────────────────────────────────────────────────────────
     socket.on('delete_message', async ({ messageId, deleteForEveryone, chatId, receiverId }) => {
       const message = await Message.findById(messageId);
       if (!message) return;
@@ -130,23 +137,50 @@ const socketHandler = (io) => {
       }
     });
 
-    // Chat request response
+    // ─── Chat request response ─────────────────────────────────────────────────
     socket.on('request_response', (data) => {
       const { to, accepted, chatId } = data;
       io.to(to).emit('request_responded', { accepted, chatId, by: userId });
+    });
+
+    // ─── CALL SIGNALING ────────────────────────────────────────────────────────
+
+    // Outgoing call offer
+    socket.on('call_offer', ({ to, offer, caller }) => {
+      io.to(to).emit('call_offer', { from: userId, offer, caller });
+      console.log(`📞 Call offer from ${socket.user.username} to ${to}`);
+    });
+
+    // Call answer
+    socket.on('call_answer', ({ to, answer }) => {
+      io.to(to).emit('call_answer', { from: userId, answer });
+    });
+
+    // ICE candidate
+    socket.on('call_ice_candidate', ({ to, candidate }) => {
+      io.to(to).emit('call_ice_candidate', { from: userId, candidate });
+    });
+
+    // End call
+    socket.on('call_end', ({ to }) => {
+      io.to(to).emit('call_ended', { by: userId });
+      console.log(`📵 Call ended by ${socket.user.username}`);
+    });
+
+    // Reject call
+    socket.on('call_reject', ({ to }) => {
+      io.to(to).emit('call_rejected', { by: userId });
     });
 
     // ─── Disconnect ────────────────────────────────────────────────────────────
     socket.on('disconnect', async () => {
       console.log(`❌ User disconnected: ${socket.user.username}`);
       onlineUsers.delete(userId);
-
       await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen: new Date() });
       socket.broadcast.emit('user_offline', { userId, lastSeen: new Date() });
     });
   });
 
-  // Expose io to routes via app
   return io;
 };
 

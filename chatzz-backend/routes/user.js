@@ -11,6 +11,7 @@ const {
   blockUser,
   unblockUser,
   getChatRequests,
+  deleteAccount,
 } = require('../controllers/userController');
 
 router.get('/', protect, getAllUsers);
@@ -21,5 +22,6 @@ router.post('/:id/request', protect, sendChatRequest);
 router.put('/request/:userId/respond', protect, respondChatRequest);
 router.post('/:id/block', protect, blockUser);
 router.delete('/:id/block', protect, unblockUser);
+router.delete('/account', protect, deleteAccount);
 
 module.exports = router;

@@ -45,6 +45,9 @@ app.get('/health', (req, res) => res.json({ status: 'OK', app: 'Chatzz Backend' 
 // Socket.io
 socketHandler(io);
 
+// Expose io to controllers via app
+app.set('io', io);
+
 // Global error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);

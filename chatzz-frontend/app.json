@@ -4,31 +4,32 @@
     "slug": "chatzz",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logo.jpeg",
+    "icon": "./assets/images/logo.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/images/logo.jpeg",
+      "image": "./assets/images/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A0A0A"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.chatzz.app"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/logo.jpeg",
+        "foregroundImage": "./assets/images/logo.png",
         "backgroundColor": "#0A0A0A"
       },
       "package": "com.chatzz.app",
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "RECORD_AUDIO",
-        "NOTIFICATIONS",
-        "VIBRATE"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "googleServicesFile": "./google-services.json"
     },
@@ -36,18 +37,30 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/logo.jpeg",
+          "icon": "./assets/images/notification-icon.png",
           "color": "#E53935",
-          "sounds": ["./assets/sounds/notification.wav"],
-          "androidMode": "default",
-          "androidCollapsedTitle": "Chatzz"
+          "sounds": [
+            "./assets/sounds/notification.wav"
+          ]
         }
       ],
-      ["expo-image-picker", { "photosPermission": "Allow Chatzz to access your photos" }],
-      ["expo-av", { "microphonePermission": "Allow Chatzz to access your microphone" }]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Chatzz to access your photos"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Chatzz to access your microphone"
+        }
+      ]
     ],
     "extra": {
-      "eas": { "projectId": "your-eas-project-id" }
+      "eas": {
+        "projectId": "f374ebf8-ad86-4d4c-b499-279425d1eea9"
+      }
     }
   }
 }
