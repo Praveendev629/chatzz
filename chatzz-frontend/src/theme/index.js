@@ -1,3 +1,5 @@
+// Static fallback Colors – used by components that don't need dynamic theming.
+// Screens that support dynamic themes import useTheme() from ThemeContext instead.
 export const Colors = {
   primary: '#E53935',
   primaryDark: '#B71C1C',
@@ -34,35 +36,20 @@ export const Typography = {
 };
 
 export const Spacing = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 48,
+  xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48,
 };
 
 export const BorderRadius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
-  full: 9999,
+  sm: 8, md: 12, lg: 16, xl: 24, full: 9999,
 };
 
 export const Shadow = {
   sm: {
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 4, elevation: 3,
   },
   md: {
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 8, elevation: 6,
   },
 };

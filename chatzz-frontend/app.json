@@ -9,19 +9,24 @@
     "splash": {
       "image": "./assets/images/logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A0A0A"
+      "backgroundColor": "#075E54"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.chatzz.app"
+      "bundleIdentifier": "com.chatzz.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Chatzz needs microphone for voice and video calls",
+        "NSCameraUsageDescription": "Chatzz needs camera for video calls and photos",
+        "UIBackgroundModes": ["audio", "voip", "remote-notification"]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo.png",
-        "backgroundColor": "#0A0A0A"
+        "backgroundColor": "#075E54"
       },
       "package": "com.chatzz.app",
       "permissions": [
@@ -29,37 +34,61 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.FOREGROUND_SERVICE"
       ],
       "googleServicesFile": "./google-services.json"
     },
     "plugins": [
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24,
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0",
+            "kotlinVersion": "1.8.10",
+            "enableProguardInReleaseBuilds": false,
+            "packagingOptions": {
+              "pickFirst": ["**/libc++_shared.so", "**/libfbjni.so"]
+            }
+          },
+          "ios": {
+            "deploymentTarget": "13.4"
+          }
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/images/notification-icon.png",
           "color": "#E53935",
-          "sounds": [
-            "./assets/sounds/notification.wav"
-          ]
+          "sounds": ["./assets/sounds/notification.wav"]
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Chatzz to access your photos"
+          "photosPermission": "Allow Chatzz to access your photos",
+          "cameraPermission": "Allow Chatzz to access your camera"
         }
       ],
       [
         "expo-av",
         {
-          "microphonePermission": "Allow Chatzz to access your microphone"
+          "microphonePermission": "Allow Chatzz to access your microphone for voice messages and calls"
         }
       ]
     ],
     "extra": {
       "eas": {
-        "projectId": "f374ebf8-ad86-4d4c-b499-279425d1eea9"
+        "projectId": "b7f29915-128e-4799-a082-606d932e4583"
       }
     }
   }

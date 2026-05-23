@@ -10,13 +10,15 @@
     "preview": {
       "android": {
         "buildType": "apk",
+        "image": "latest",
         "gradleCommand": ":app:assembleRelease"
       },
       "distribution": "internal"
     },
     "production": {
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "image": "latest"
       }
     }
   },

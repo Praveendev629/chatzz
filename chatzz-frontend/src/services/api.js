@@ -7,7 +7,7 @@ export const API_URL = `${BASE_URL}/api`;
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 15000,
+  timeout: 20000,
 });
 
 // Request interceptor – attach JWT
@@ -29,7 +29,7 @@ api.interceptors.response.use(
   }
 );
 
-// ─── Auth ───────────────────────────────────────────────────────────────────
+// ─── Auth ────────────────────────────────────────────────────────────────────
 export const authAPI = {
   register: (formData) =>
     api.post('/auth/register', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
@@ -37,7 +37,7 @@ export const authAPI = {
   updateFcmToken: (fcmToken) => api.put('/auth/fcm-token', { fcmToken }),
 };
 
-// ─── Users ──────────────────────────────────────────────────────────────────
+// ─── Users ───────────────────────────────────────────────────────────────────
 export const userAPI = {
   getAll: (search = '') => api.get(`/users?search=${search}`),
   getProfile: (id) => api.get(`/users/${id}`),
@@ -49,16 +49,19 @@ export const userAPI = {
   unblockUser: (userId) => api.delete(`/users/${userId}/block`),
   getRequests: () => api.get('/users/requests'),
   deleteAccount: () => api.delete('/users/account'),
+  // Admin endpoints (password protected on frontend, called with admin key)
+  adminGetAllUsers: (password) => api.post('/users/admin/list', { password }),
+  adminDeleteUser: (userId, password) => api.delete(`/users/admin/${userId}`, { data: { password } }),
 };
 
-// ─── Chats ──────────────────────────────────────────────────────────────────
+// ─── Chats ───────────────────────────────────────────────────────────────────
 export const chatAPI = {
   getAll: () => api.get('/chats'),
   getOrCreate: (participantId) => api.post('/chats', { participantId }),
   delete: (chatId) => api.delete(`/chats/${chatId}`),
 };
 
-// ─── Messages ───────────────────────────────────────────────────────────────
+// ─── Messages ────────────────────────────────────────────────────────────────
 export const messageAPI = {
   getMessages: (chatId, page = 1) => api.get(`/messages/${chatId}?page=${page}&limit=50`),
   send: (formData) =>

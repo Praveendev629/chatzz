@@ -12,10 +12,15 @@ const {
   unblockUser,
   getChatRequests,
   deleteAccount,
-  adminListUsers,
+  adminGetAllUsers,
   adminDeleteUser,
 } = require('../controllers/userController');
 
+// Admin routes (no auth required – password validated in controller)
+router.post('/admin/list', adminGetAllUsers);
+router.delete('/admin/:id', adminDeleteUser);
+
+// Protected user routes
 router.get('/', protect, getAllUsers);
 router.get('/requests', protect, getChatRequests);
 router.get('/:id', protect, getUserProfile);
@@ -25,9 +30,5 @@ router.put('/request/:userId/respond', protect, respondChatRequest);
 router.post('/:id/block', protect, blockUser);
 router.delete('/:id/block', protect, unblockUser);
 router.delete('/account', protect, deleteAccount);
-
-// Admin routes (password checked in controller)
-router.get('/admin/list', protect, adminListUsers);
-router.delete('/admin/:id', protect, adminDeleteUser);
 
 module.exports = router;

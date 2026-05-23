@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
+import {
+  View, Text, StyleSheet, Image, TouchableOpacity,
+  TouchableWithoutFeedback, Linking, Alert,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { Colors, BorderRadius, Spacing } from '../theme';
 
-const MessageBubble = ({ message, isMine, onLongPress }) => {
+const MessageBubble = ({ message, isMine, onLongPress, onImagePress, colors }) => {
   const [playing, setPlaying] = useState(false);
   const [sound, setSound] = useState(null);
+  const C = colors || Colors;
 
   if (message.deletedForEveryone) {
     return (
       <View style={[styles.wrapper, isMine ? styles.right : styles.left]}>
-        <View style={[styles.deletedBubble]}>
-          <Ionicons name="ban" size={14} color={Colors.textMuted} style={{ marginRight: 6 }} />
-          <Text style={styles.deletedText}>This message was deleted</Text>
+        <View style={[styles.deletedBubble, { backgroundColor: C.surfaceLight, borderColor: C.border }]}>
+          <Ionicons name="ban" size={14} color={C.textMuted} style={{ marginRight: 6 }} />
+          <Text style={[styles.deletedText, { color: C.textMuted }]}>This message was deleted</Text>
         </View>
       </View>
     );
@@ -22,8 +26,7 @@ const MessageBubble = ({ message, isMine, onLongPress }) => {
   const playAudio = async () => {
     if (sound) {
       await sound.unloadAsync();
-      setSound(null);
-      setPlaying(false);
+      setSound(null); setPlaying(false);
       return;
     }
     try {
@@ -34,53 +37,104 @@ const MessageBubble = ({ message, isMine, onLongPress }) => {
       s.setOnPlaybackStatusUpdate((status) => {
         if (status.didJustFinish) { setPlaying(false); setSound(null); }
       });
-    } catch {}
+    } catch { Alert.alert('Error', 'Could not play audio'); }
+  };
+
+  const openDocument = async () => {
+    if (!message.fileUrl) return;
+    try {
+      const supported = await Linking.canOpenURL(message.fileUrl);
+      if (supported) {
+        await Linking.openURL(message.fileUrl);
+      } else {
+        Alert.alert('Cannot open', 'Install a file viewer app to open this document.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not open document');
+    }
   };
 
   const renderContent = () => {
     switch (message.messageType) {
       case 'image':
         return (
-          <Image
-            source={{ uri: message.fileUrl }}
-            style={styles.imageContent}
-            resizeMode="cover"
-          />
+          <TouchableOpacity onPress={() => onImagePress && onImagePress(message.fileUrl)} activeOpacity={0.9}>
+            <Image
+              source={{ uri: message.fileUrl }}
+              style={styles.imageContent}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
         );
+
       case 'audio':
         return (
           <TouchableOpacity style={styles.audioContent} onPress={playAudio}>
-            <Ionicons name={playing ? 'pause-circle' : 'play-circle'} size={36} color={isMine ? '#fff' : Colors.primary} />
-            <View style={styles.audioWave}>
-              {[...Array(8)].map((_, i) => (
-                <View key={i} style={[styles.audioBar, { height: 6 + (i % 3) * 6 }]} />
-              ))}
+            <Ionicons
+              name={playing ? 'pause-circle' : 'play-circle'}
+              size={40}
+              color={isMine ? '#fff' : C.primary}
+            />
+            <View style={styles.audioWaveContainer}>
+              <View style={styles.audioWave}>
+                {[...Array(16)].map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.audioBar,
+                      {
+                        height: 4 + (i % 4) * 5,
+                        backgroundColor: playing
+                          ? (isMine ? '#fff' : C.primary)
+                          : (isMine ? 'rgba(255,255,255,0.6)' : 'rgba(150,150,150,0.8)'),
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+              <Text style={[styles.audioDuration, { color: isMine ? 'rgba(255,255,255,0.75)' : C.textMuted }]}>
+                Voice Message
+              </Text>
             </View>
-            <Text style={[styles.audioDuration, isMine && { color: 'rgba(255,255,255,0.8)' }]}>
-              Voice
-            </Text>
           </TouchableOpacity>
         );
+
       case 'document':
         return (
-          <View style={styles.docContent}>
-            <Ionicons name="document-attach" size={28} color={isMine ? '#fff' : Colors.primary} />
-            <Text style={[styles.docName, isMine && { color: '#fff' }]} numberOfLines={1}>
-              {message.fileName || 'Document'}
-            </Text>
-          </View>
+          <TouchableOpacity style={styles.docContent} onPress={openDocument}>
+            <View style={[styles.docIconBox, { backgroundColor: isMine ? 'rgba(255,255,255,0.2)' : `${C.primary}20` }]}>
+              <Ionicons name="document-attach" size={28} color={isMine ? '#fff' : C.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.docName, { color: isMine ? '#fff' : C.text }]} numberOfLines={2}>
+                {message.fileName || 'Document'}
+              </Text>
+              <Text style={[styles.docTap, { color: isMine ? 'rgba(255,255,255,0.7)' : C.textMuted }]}>
+                Tap to open
+              </Text>
+            </View>
+            <Ionicons name="download-outline" size={20} color={isMine ? '#fff' : C.primary} />
+          </TouchableOpacity>
         );
+
       default:
-        return <Text style={[styles.messageText, isMine && styles.messageTextMine]}>{message.content}</Text>;
+        return (
+          <Text style={[styles.messageText, isMine && styles.messageTextMine]}>
+            {message.content}
+          </Text>
+        );
     }
   };
 
   const getStatusIcon = () => {
     if (!isMine) return null;
     switch (message.status) {
-      case 'seen': return <Ionicons name="checkmark-done" size={14} color={isMine ? 'rgba(255,255,255,0.8)' : Colors.primary} />;
-      case 'delivered': return <Ionicons name="checkmark-done" size={14} color="rgba(255,255,255,0.6)" />;
-      default: return <Ionicons name="checkmark" size={14} color="rgba(255,255,255,0.6)" />;
+      case 'seen':
+        return <Ionicons name="checkmark-done" size={14} color="rgba(147,213,255,0.9)" />;
+      case 'delivered':
+        return <Ionicons name="checkmark-done" size={14} color="rgba(255,255,255,0.6)" />;
+      default:
+        return <Ionicons name="checkmark" size={14} color="rgba(255,255,255,0.5)" />;
     }
   };
 
@@ -92,10 +146,17 @@ const MessageBubble = ({ message, isMine, onLongPress }) => {
   return (
     <TouchableWithoutFeedback onLongPress={onLongPress}>
       <View style={[styles.wrapper, isMine ? styles.right : styles.left]}>
-        <View style={[styles.bubble, isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
+        <View style={[
+          styles.bubble,
+          isMine
+            ? [styles.bubbleMine, { backgroundColor: C.primary }]
+            : [styles.bubbleTheirs, { backgroundColor: C.card }],
+        ]}>
           {renderContent()}
           <View style={styles.meta}>
-            <Text style={[styles.time, isMine && styles.timeMine]}>{formatTime(message.createdAt)}</Text>
+            <Text style={[styles.time, isMine && styles.timeMine]}>
+              {formatTime(message.createdAt)}
+            </Text>
             {getStatusIcon()}
           </View>
         </View>
@@ -108,37 +169,30 @@ const styles = StyleSheet.create({
   wrapper: { marginVertical: 2, marginHorizontal: Spacing.sm, flexDirection: 'row' },
   left: { justifyContent: 'flex-start' },
   right: { justifyContent: 'flex-end' },
-  bubble: {
-    maxWidth: '75%', padding: 10, borderRadius: 16,
-    minWidth: 80,
-  },
-  bubbleMine: {
-    backgroundColor: Colors.primary,
-    borderBottomRightRadius: 4,
-  },
-  bubbleTheirs: {
-    backgroundColor: Colors.card,
-    borderBottomLeftRadius: 4,
-  },
+  bubble: { maxWidth: '78%', padding: 10, borderRadius: 18, minWidth: 80 },
+  bubbleMine: { borderBottomRightRadius: 4 },
+  bubbleTheirs: { borderBottomLeftRadius: 4 },
   deletedBubble: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 8, paddingHorizontal: 12,
-    backgroundColor: Colors.surfaceLight, borderRadius: 12,
-    borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 12, borderWidth: 1,
   },
-  deletedText: { fontSize: 13, color: Colors.textMuted, fontStyle: 'italic' },
+  deletedText: { fontSize: 13, fontStyle: 'italic' },
   messageText: { fontSize: 15, color: Colors.text, lineHeight: 20 },
   messageTextMine: { color: '#fff' },
-  imageContent: { width: 200, height: 200, borderRadius: 12, marginBottom: 4 },
-  audioContent: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 8 },
-  audioWave: { flexDirection: 'row', alignItems: 'center', gap: 2, flex: 1 },
-  audioBar: { width: 3, backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 2 },
-  audioDuration: { fontSize: 12, color: Colors.textSecondary },
-  docContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  docName: { flex: 1, fontSize: 14, color: Colors.text },
+  imageContent: { width: 210, height: 210, borderRadius: 14, marginBottom: 4 },
+  audioContent: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingRight: 4, minWidth: 180 },
+  audioWaveContainer: { flex: 1 },
+  audioWave: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 4 },
+  audioBar: { width: 3, borderRadius: 2, minHeight: 4 },
+  audioDuration: { fontSize: 11 },
+  docContent: { flexDirection: 'row', alignItems: 'center', gap: 10, maxWidth: 200 },
+  docIconBox: { width: 46, height: 46, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  docName: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  docTap: { fontSize: 11, marginTop: 2 },
   meta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4, gap: 4 },
   time: { fontSize: 11, color: Colors.textMuted },
-  timeMine: { color: 'rgba(255,255,255,0.7)' },
+  timeMine: { color: 'rgba(255,255,255,0.65)' },
 });
 
 export default MessageBubble;

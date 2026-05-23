@@ -22,20 +22,47 @@ export const AuthProvider = ({ children }) => {
 
   const checkExistingSession = async () => {
     try {
+      // ── OFFLINE-FIRST: restore from local storage immediately ──────────────
+      const cachedToken = await SecureStore.getItemAsync('chatzz_token');
+      const cachedUserStr = await SecureStore.getItemAsync('chatzz_user');
+
+      if (cachedToken && cachedUserStr) {
+        const cachedUser = JSON.parse(cachedUserStr);
+        // Restore local profile picture
+        const localPic = await loadLocalProfilePic();
+        if (localPic && !cachedUser.profilePicture?.startsWith('http')) {
+          cachedUser.profilePicture = localPic;
+        }
+        setToken(cachedToken);
+        setUser(cachedUser);
+        initSocket(cachedToken);
+
+        // Background sync: verify token + refresh FCM
+        setLoading(false);
+        try {
+          const deviceId = await getDeviceId();
+          const result = await authAPI.checkDevice(deviceId);
+          if (result.registered && result.token) {
+            await saveSession(result.token, { ...cachedUser, ...result.user });
+          }
+          const fcmToken = await registerForPushNotifications();
+          if (fcmToken) await authAPI.updateFcmToken(fcmToken);
+        } catch (_) {
+          // Ignore background refresh errors – user stays logged in
+        }
+        return;
+      }
+
+      // ── No cached session – check device with backend ──────────────────────
       const deviceId = await getDeviceId();
       const result = await authAPI.checkDevice(deviceId);
 
       if (result.registered && result.token) {
-        // Restore local profile picture if server URL is missing/stale
         const userData = result.user;
         const localPic = await loadLocalProfilePic();
-        if (!userData.profilePicture && localPic) {
-          userData.profilePicture = localPic;
-        }
+        if (!userData.profilePicture && localPic) userData.profilePicture = localPic;
         await saveSession(result.token, userData);
         initSocket(result.token);
-
-        // Refresh FCM token
         try {
           const fcmToken = await registerForPushNotifications();
           if (fcmToken) await authAPI.updateFcmToken(fcmToken);
@@ -44,7 +71,17 @@ export const AuthProvider = ({ children }) => {
         setIsNewUser(true);
       }
     } catch {
-      setIsNewUser(true);
+      // If everything fails but we have cached data, stay logged in
+      const cachedToken = await SecureStore.getItemAsync('chatzz_token').catch(() => null);
+      const cachedUserStr = await SecureStore.getItemAsync('chatzz_user').catch(() => null);
+      if (cachedToken && cachedUserStr) {
+        const cachedUser = JSON.parse(cachedUserStr);
+        setToken(cachedToken);
+        setUser(cachedUser);
+        initSocket(cachedToken);
+      } else {
+        setIsNewUser(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -62,21 +99,17 @@ export const AuthProvider = ({ children }) => {
     return deviceId;
   };
 
-  // Load a locally-cached profile picture (survives network issues)
   const loadLocalProfilePic = async () => {
     try {
       const info = await FileSystem.getInfoAsync(PROFILE_PIC_PATH);
-      if (info.exists) return PROFILE_PIC_PATH;
+      if (info.exists) return PROFILE_PIC_PATH + '?v=' + Date.now();
       return null;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   };
 
-  // Save profile picture to local filesystem for permanent storage
   const saveLocalProfilePic = async (uri) => {
     try {
-      if (uri && uri !== PROFILE_PIC_PATH) {
+      if (uri && !uri.startsWith(FileSystem.documentDirectory)) {
         await FileSystem.copyAsync({ from: uri, to: PROFILE_PIC_PATH });
       }
     } catch (err) {
@@ -86,7 +119,6 @@ export const AuthProvider = ({ children }) => {
 
   const saveSession = async (newToken, newUser) => {
     await SecureStore.setItemAsync('chatzz_token', newToken);
-    // Persist user JSON (non-sensitive) so we can restore instantly
     await SecureStore.setItemAsync('chatzz_user', JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
@@ -106,7 +138,6 @@ export const AuthProvider = ({ children }) => {
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : 'image/jpeg';
       formData.append('profilePicture', { uri: profilePictureUri, name: filename, type });
-      // Cache locally for persistence
       await saveLocalProfilePic(profilePictureUri);
     }
 
@@ -120,25 +151,18 @@ export const AuthProvider = ({ children }) => {
   const updateUser = useCallback(async (updatedUser) => {
     setUser((prev) => {
       const merged = { ...prev, ...updatedUser };
-      // Persist
       SecureStore.setItemAsync('chatzz_user', JSON.stringify(merged)).catch(() => {});
       return merged;
     });
-
-    // If profile picture changed, save locally
-    if (updatedUser.profilePicture) {
+    if (updatedUser.profilePicture && !updatedUser.profilePicture.startsWith('http')) {
       await saveLocalProfilePic(updatedUser.profilePicture);
     }
   }, []);
 
   const deleteAccount = async () => {
-    try {
-      await userAPI.deleteAccount();
-    } catch (err) {
-      // Continue even if API fails
+    try { await userAPI.deleteAccount(); } catch (err) {
       console.warn('Delete account error:', err.message);
     }
-    // Clean up local data
     await SecureStore.deleteItemAsync('chatzz_token');
     await SecureStore.deleteItemAsync('chatzz_device_id');
     await SecureStore.deleteItemAsync('chatzz_user');
@@ -160,18 +184,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        loading,
-        isNewUser,
-        register,
-        updateUser,
-        logout,
-        deleteAccount,
-      }}
-    >
+    <AuthContext.Provider value={{ user, token, loading, isNewUser, register, updateUser, logout, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );

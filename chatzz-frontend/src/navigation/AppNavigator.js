@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../context/AuthContext';
-import { Colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
+import { useSocket } from '../context/SocketContext';
+import { scheduleLocalNotification } from '../services/notifications';
 
 import SplashScreen from '../screens/SplashScreen';
 import GetStartedScreen from '../screens/GetStartedScreen';
@@ -19,55 +20,47 @@ import SettingsScreen from '../screens/SettingsScreen';
 import CallScreen from '../screens/CallScreen';
 
 const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
 
-const TabNavigator = () => (
-  <Tab.Navigator
-    screenOptions={({ route }) => ({
-      headerShown: false,
-      tabBarStyle: {
-        backgroundColor: Colors.surface,
-        borderTopColor: Colors.border,
-        borderTopWidth: 1,
-        height: 60,
-        paddingBottom: 8,
-        paddingTop: 4,
-      },
-      tabBarActiveTintColor: Colors.primary,
-      tabBarInactiveTintColor: Colors.textMuted,
-      tabBarShowLabel: false,
-      tabBarIcon: ({ focused, color }) => {
-        let iconName;
-        if (route.name === 'Home') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
-        else if (route.name === 'Search') iconName = focused ? 'search' : 'search-outline';
-        else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
-        return <Ionicons name={iconName} size={26} color={color} />;
-      },
-    })}
-  >
-    <Tab.Screen name="Home" component={HomeScreen} />
-    <Tab.Screen name="Search" component={SearchScreen} />
-    <Tab.Screen name="Profile" component={ProfileScreen} />
-  </Tab.Navigator>
-);
-
-const AppNavigator = () => {
-  const { user, loading, isNewUser } = useAuth();
+const AppNavigator = ({ navigationRef }) => {
+  const { user, loading } = useAuth();
+  const { colors } = useTheme();
+  const { on, off } = useSocket();
   const [splashDone, setSplashDone] = useState(false);
 
-  // Show WhatsApp-style splash while auth is loading OR just after launch
+  // Handle incoming calls globally (even from other screens)
+  useEffect(() => {
+    if (!user) return;
+    const handleIncomingCall = (data) => {
+      // Send call notification (works even when app is in foreground)
+      scheduleLocalNotification({
+        title: `📞 Incoming Call from ${data.caller?.username || 'Someone'}`,
+        body: 'Tap to answer',
+        data: { type: 'call', caller: data.caller, callerId: data.from, offer: data.offer },
+        categoryIdentifier: 'call',
+      });
+      // Navigate to call screen
+      if (navigationRef?.current) {
+        try {
+          navigationRef.current.navigate('Call', {
+            participant: data.caller,
+            isIncoming: true,
+            offer: data.offer,
+          });
+        } catch (_) {}
+      }
+    };
+
+    on('call_offer', handleIncomingCall);
+    return () => off('call_offer', handleIncomingCall);
+  }, [user, on, off]);
+
   if (loading || !splashDone) {
     return <SplashScreen onFinish={() => setSplashDone(true)} />;
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-          animation: 'slide_from_right',
-        }}
-      >
+    <NavigationContainer ref={navigationRef}>
+      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         {!user ? (
           <>
             <Stack.Screen name="GetStarted" component={GetStartedScreen} />
@@ -75,13 +68,15 @@ const AppNavigator = () => {
           </>
         ) : (
           <>
-            <Stack.Screen name="Main" component={TabNavigator} />
+            <Stack.Screen name="Main" component={HomeScreen} />
+            <Stack.Screen name="Search" component={SearchScreen} />
             <Stack.Screen name="Chat" component={ChatScreen} />
+            <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen
               name="Call"
               component={CallScreen}
-              options={{ animation: 'slide_from_bottom' }}
+              options={{ animation: 'slide_from_bottom', gestureEnabled: false }}
             />
           </>
         )}
@@ -90,8 +85,6 @@ const AppNavigator = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
-});
+const styles = StyleSheet.create({});
 
 export default AppNavigator;
