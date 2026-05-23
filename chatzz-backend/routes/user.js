@@ -12,6 +12,8 @@ const {
   unblockUser,
   getChatRequests,
   deleteAccount,
+  adminListUsers,
+  adminDeleteUser,
 } = require('../controllers/userController');
 
 router.get('/', protect, getAllUsers);
@@ -23,5 +25,9 @@ router.put('/request/:userId/respond', protect, respondChatRequest);
 router.post('/:id/block', protect, blockUser);
 router.delete('/:id/block', protect, unblockUser);
 router.delete('/account', protect, deleteAccount);
+
+// Admin routes (password checked in controller)
+router.get('/admin/list', protect, adminListUsers);
+router.delete('/admin/:id', protect, adminDeleteUser);
 
 module.exports = router;

@@ -22,27 +22,42 @@ const initializeFirebase = () => {
   }
 };
 
-const sendPushNotification = async ({ token, title, body, data = {} }) => {
+const sendPushNotification = async ({ token, title, body, data = {}, android = {}, apns = {} }) => {
   if (!firebaseInitialized) initializeFirebase();
   if (!token) return;
+
+  // Serialize all data values to strings (FCM requirement)
+  const serializedData = {};
+  for (const [k, v] of Object.entries(data)) {
+    serializedData[k] = typeof v === 'string' ? v : JSON.stringify(v);
+  }
+  serializedData.click_action = 'FLUTTER_NOTIFICATION_CLICK';
+
+  const isCall = data.type === 'incoming_call';
 
   try {
     const message = {
       notification: { title, body },
-      data: { ...data, click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+      data: serializedData,
       android: {
-        notification: {
-          sound: 'notification',
-          channelId: 'chatzz_messages',
-          priority: 'high',
-        },
         priority: 'high',
+        notification: {
+          sound: isCall ? 'notification' : 'notification',
+          channelId: isCall ? 'chatzz_calls' : 'chatzz_messages',
+          priority: 'max',
+          defaultSound: true,
+          ...(android.notification || {}),
+        },
+        ...(android || {}),
       },
       apns: {
+        headers: { 'apns-priority': isCall ? '10' : '10', ...(apns.headers || {}) },
         payload: {
           aps: {
             sound: 'notification.wav',
             badge: 1,
+            contentAvailable: isCall ? true : false,
+            ...(apns.payload?.aps || {}),
           },
         },
       },

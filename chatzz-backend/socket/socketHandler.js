@@ -146,9 +146,33 @@ const socketHandler = (io) => {
     // ─── CALL SIGNALING ────────────────────────────────────────────────────────
 
     // Outgoing call offer
-    socket.on('call_offer', ({ to, offer, caller }) => {
-      io.to(to).emit('call_offer', { from: userId, offer, caller });
+    socket.on('call_offer', async ({ to, offer, caller, callType }) => {
+      io.to(to).emit('call_offer', { from: userId, offer, caller, callType: callType || 'voice' });
       console.log(`📞 Call offer from ${socket.user.username} to ${to}`);
+
+      // Send FCM high-priority call notification so receiver sees it even when app is closed
+      try {
+        const receiver = await User.findById(to).select('fcmToken');
+        if (receiver?.fcmToken) {
+          await sendPushNotification({
+            token: receiver.fcmToken,
+            title: `📞 Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call`,
+            body: `${socket.user.username} is calling...`,
+            data: {
+              type: 'incoming_call',
+              callerId: userId,
+              callerName: socket.user.username,
+              callerAvatar: socket.user.profilePicture || '',
+              callType: callType || 'voice',
+              offer: JSON.stringify(offer),
+            },
+            android: { channelId: 'chatzz_calls', priority: 'high', sound: 'notification.wav' },
+            apns: { headers: { 'apns-priority': '10' }, payload: { aps: { sound: 'notification.wav', contentAvailable: true } } },
+          }).catch((e) => console.warn('Call push error:', e.message));
+        }
+      } catch (e) {
+        console.warn('Error sending call notification:', e.message);
+      }
     });
 
     // Call answer

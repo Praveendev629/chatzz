@@ -280,6 +280,59 @@ const deleteAccount = async (req, res) => {
   }
 };
 
+// @desc    Admin: list all users
+// @route   GET /api/users/admin/list
+// @access  Private + Admin password header
+const adminListUsers = async (req, res) => {
+  try {
+    const adminPwd = req.headers['x-admin-password'];
+    if (adminPwd !== 'praveen001') {
+      return res.status(403).json({ success: false, message: 'Invalid admin password' });
+    }
+    const users = await User.find({}).select('_id username profilePicture about isOnline lastSeen createdAt');
+    res.status(200).json({ success: true, users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Admin: delete a user
+// @route   DELETE /api/users/admin/:id
+// @access  Private + Admin password header
+const adminDeleteUser = async (req, res) => {
+  try {
+    const adminPwd = req.headers['x-admin-password'];
+    if (adminPwd !== 'praveen001') {
+      return res.status(403).json({ success: false, message: 'Invalid admin password' });
+    }
+
+    const targetId = req.params.id;
+    const Chat = require('../models/Chat');
+    const Message = require('../models/Message');
+
+    const chats = await Chat.find({ participants: targetId });
+    const chatIds = chats.map((c) => c._id);
+
+    // Notify via socket
+    if (req.app.get('io')) {
+      for (const chat of chats) {
+        const otherId = chat.participants.find((p) => p.toString() !== targetId.toString());
+        if (otherId) {
+          req.app.get('io').to(otherId.toString()).emit('user_deleted', { userId: targetId });
+        }
+      }
+    }
+
+    await Message.deleteMany({ chatId: { $in: chatIds } });
+    await Chat.deleteMany({ participants: targetId });
+    await User.findByIdAndDelete(targetId);
+
+    res.status(200).json({ success: true, message: 'User deleted by admin' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserProfile,
@@ -290,4 +343,6 @@ module.exports = {
   unblockUser,
   getChatRequests,
   deleteAccount,
+  adminListUsers,
+  adminDeleteUser,
 };
