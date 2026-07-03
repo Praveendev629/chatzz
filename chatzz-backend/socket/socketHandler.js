@@ -4,6 +4,7 @@ const Message = require('../models/Message');
 const { sendPushNotification } = require('../config/firebase');
 
 const onlineUsers = new Map(); // userId -> socketId
+const viewingChatMap = new Map(); // userId -> chatId (which chat the user is currently viewing)
 
 const socketHandler = (io) => {
   // Auth middleware
@@ -32,6 +33,15 @@ const socketHandler = (io) => {
 
     await User.findByIdAndUpdate(userId, { isOnline: true, lastSeen: new Date() });
     socket.broadcast.emit('user_online', { userId, isOnline: true });
+
+    // ─── Viewing Chat (suppress notifications) ──────────────────────────────
+    socket.on('viewing_chat', ({ chatId }) => {
+      if (chatId) {
+        viewingChatMap.set(userId, chatId);
+      } else {
+        viewingChatMap.delete(userId);
+      }
+    });
 
     // ─── Send Message ──────────────────────────────────────────────────────────
     socket.on('send_message', async (data) => {
@@ -74,24 +84,27 @@ const socketHandler = (io) => {
           socket.emit('message_delivered', { messageId: message._id });
         }
 
-        // ── Push notification to receiver (even if online, for background state) ──
-        const receiver = await User.findById(receiverId).select('fcmToken');
-        if (receiver?.fcmToken) {
-          const notifBody =
-            messageType === 'text'
-              ? content
-              : messageType === 'image'
-              ? '📷 sent a photo'
-              : messageType === 'audio'
-              ? '🎤 sent a voice message'
-              : '📎 sent a file';
+        // ── Push notification to receiver (skip if viewing this chat) ──
+        const viewingChatId = viewingChatMap.get(receiverId);
+        if (viewingChatId !== chatId) {
+          const receiver = await User.findById(receiverId).select('fcmToken');
+          if (receiver?.fcmToken) {
+            const notifBody =
+              messageType === 'text'
+                ? content
+                : messageType === 'image'
+                ? '📷 sent a photo'
+                : messageType === 'audio'
+                ? '🎤 sent a voice message'
+                : '📎 sent a file';
 
-          await sendPushNotification({
-            token: receiver.fcmToken,
-            title: socket.user.username,
-            body: notifBody,
-            data: { type: 'message', chatId, senderId: userId },
-          }).catch((e) => console.warn('Push notification error:', e.message));
+            await sendPushNotification({
+              token: receiver.fcmToken,
+              title: socket.user.username,
+              body: notifBody,
+              data: { type: 'message', chatId, senderId: userId },
+            }).catch((e) => console.warn('Push notification error:', e.message));
+          }
         }
       } catch (err) {
         socket.emit('message_error', { error: err.message });
@@ -197,6 +210,7 @@ const socketHandler = (io) => {
     socket.on('disconnect', async () => {
       console.log(`❌ User disconnected: ${socket.user.username}`);
       onlineUsers.delete(userId);
+      viewingChatMap.delete(userId);
       await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen: new Date() });
       socket.broadcast.emit('user_offline', { userId, lastSeen: new Date() });
     });

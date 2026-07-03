@@ -38,7 +38,7 @@ const sendMessage = async (req, res) => {
     let fileSize = null;
 
     if (req.file) {
-      fileUrl = `${req.protocol}://${req.get('host')}/${req.file.path}`;
+      fileUrl = req.file.path;
       fileName = req.file.originalname;
       fileSize = req.file.size;
     }

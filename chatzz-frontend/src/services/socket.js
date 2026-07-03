@@ -43,6 +43,7 @@ export const emitTyping = (data) => socket?.emit('typing', data);
 export const emitStopTyping = (data) => socket?.emit('stop_typing', data);
 export const emitMarkSeen = (data) => socket?.emit('mark_seen', data);
 export const emitDeleteMessage = (data) => socket?.emit('delete_message', data);
+export const emitViewingChat = (chatId) => socket?.emit('viewing_chat', { chatId });
 
 // ─── Call events ───────────────────────────────────────────────────────────
 export const emitCallOffer = (data) => socket?.emit('call_offer', data);

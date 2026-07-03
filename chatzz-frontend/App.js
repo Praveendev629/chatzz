@@ -11,6 +11,7 @@ import {
   addNotificationListener,
   addNotificationResponseListener,
 } from './src/services/notifications';
+import { emitSendMessage } from './src/services/socket';
 
 export const navigationRef = React.createRef();
 
@@ -22,8 +23,34 @@ export default function App() {
 
     const sub2 = addNotificationResponseListener((response) => {
       const data = response.notification.request.content.data;
+      const actionIdentifier = response.actionIdentifier;
+
+      // Handle inline reply from notification
+      if (actionIdentifier === 'reply' && response.userText) {
+        const replyText = response.userText;
+        if (data?.chatId && data?.senderId) {
+          // Send the reply message via socket
+          emitSendMessage({
+            chatId: data.chatId,
+            receiverId: data.senderId,
+            messageType: 'text',
+            content: replyText,
+          });
+        }
+        // Navigate to the chat after sending reply
+        if (data?.chatId && navigationRef.current) {
+          try {
+            navigationRef.current.navigate('Chat', {
+              chatId: data.chatId,
+              participant: data.participant || { _id: data.senderId, username: data.senderName },
+            });
+          } catch (_) {}
+        }
+        return;
+      }
+
+      // Handle notification tap (navigate to chat)
       if (data?.type === 'message' && data?.chatId && navigationRef.current) {
-        // Navigate to chat when notification tapped
         try {
           navigationRef.current.navigate('Chat', {
             chatId: data.chatId,

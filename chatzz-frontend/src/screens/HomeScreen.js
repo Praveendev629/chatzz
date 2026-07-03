@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   RefreshControl, Alert, StatusBar, ActivityIndicator,
-  Dimensions, ScrollView, Animated, PanResponder,
+  Dimensions, ScrollView, Animated, PanResponder, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -16,7 +16,7 @@ import ChatListItem from '../components/ChatListItem';
 import { Spacing } from '../theme';
 
 const { width } = Dimensions.get('window');
-const TABS = ['Chats', 'Calls', 'Status'];
+const TABS = ['Chats', 'Find People', 'Status'];
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
@@ -25,6 +25,7 @@ const HomeScreen = ({ navigation }) => {
 
   const [chats, setChats] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
@@ -36,6 +37,7 @@ const HomeScreen = ({ navigation }) => {
     useCallback(() => {
       fetchChats();
       fetchRequests();
+      fetchAllUsers();
     }, [])
   );
 
@@ -108,6 +110,13 @@ const HomeScreen = ({ navigation }) => {
       const result = await userAPI.getRequests();
       setRequests(result.requests || []);
     } catch {}
+  };
+
+  const fetchAllUsers = async () => {
+    try {
+      const result = await userAPI.getAll('');
+      setAllUsers(result.users || []);
+    } catch (err) { console.error(err); }
   };
 
   const handleChatRequest = async (request, action) => {
@@ -260,11 +269,71 @@ const HomeScreen = ({ navigation }) => {
           )}
         </View>
 
-        {/* Tab 1: Calls */}
-        <View style={[{ width }, styles.emptyContainer]}>
-          <Ionicons name="call-outline" size={80} color={C.border} />
-          <Text style={[styles.emptyTitle, { color: C.textMuted }]}>No recent calls</Text>
-          <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>Start a voice or video call from a chat</Text>
+        {/* Tab 1: Find People */}
+        <View style={{ width }}>
+          <FlatList
+            data={allUsers.filter(u => {
+              if (u._id === user._id) return false;
+              // Show users who have an active chat with current user
+              const hasChat = chats.some(c => c.participants.some(p => p._id === u._id));
+              // Show users who have pending chat requests
+              const hasRequest = requests.some(r => r.from._id === u._id);
+              return hasChat || hasRequest;
+            })}
+            keyExtractor={(item) => item._id}
+            scrollEnabled={false}
+            renderItem={({ item }) => {
+              const hasChat = chats.some(c => c.participants.some(p => p._id === item._id));
+              const hasRequest = requests.some(r => r.from._id === item._id);
+              return (
+                <TouchableOpacity
+                  style={[styles.userRow, { borderBottomColor: C.border }]}
+                  onPress={() => {
+                    if (hasChat) {
+                      // Navigate to existing chat
+                      const chat = chats.find(c => c.participants.some(p => p._id === item._id));
+                      if (chat) openChat(chat);
+                    } else {
+                      // Navigate to search to send chat request
+                      navigation.navigate('Search');
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  {item.profilePicture ? (
+                    <Image source={{ uri: item.profilePicture }} style={styles.userAvatar} />
+                  ) : (
+                    <View style={[styles.userAvatar, { backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="person" size={24} color="#fff" />
+                    </View>
+                  )}
+                  <View style={styles.userInfo}>
+                    <Text style={[styles.userName, { color: C.text }]}>{item.username}</Text>
+                    <Text style={[styles.userStatus, { color: item.isOnline ? C.online : C.textMuted }]}>
+                      {hasRequest ? 'Pending request' : item.isOnline ? 'Online' : 'Offline'}
+                    </Text>
+                  </View>
+                  {hasRequest && (
+                    <View style={styles.requestBadge}>
+                      <Text style={styles.requestBadgeText}>New</Text>
+                    </View>
+                  )}
+                  <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
+                </TouchableOpacity>
+              );
+            }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAllUsers(); }} tintColor={C.primary} />}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Ionicons name="people-outline" size={80} color={C.border} />
+                <Text style={[styles.emptyTitle, { color: C.textMuted }]}>No connections yet</Text>
+                <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>Search for users to start chatting</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Search')} style={[styles.startChatBtn, { backgroundColor: C.primary }]}>
+                  <Text style={styles.startChatBtnText}>Find People</Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
         </View>
 
         {/* Tab 2: Status */}
@@ -316,6 +385,22 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontSize: 14, marginTop: 8, textAlign: 'center', paddingHorizontal: 40 },
   startChatBtn: { marginTop: 24, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 24 },
   startChatBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  userRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Spacing.lg, paddingVertical: 12, borderBottomWidth: 1,
+  },
+  userAvatar: { width: 48, height: 48, borderRadius: 24, overflow: 'hidden' },
+  userInfo: { flex: 1, marginLeft: 12 },
+  userName: { fontSize: 16, fontWeight: '600' },
+  userStatus: { fontSize: 13, marginTop: 2 },
+  requestBadge: {
+    backgroundColor: '#FF9800',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginRight: 8,
+  },
+  requestBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });
 
 export default HomeScreen;

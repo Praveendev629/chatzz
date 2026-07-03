@@ -1,17 +1,22 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import { getActiveChatId } from '../utils/activeChat';
 
 // Quick-reply action for message notifications
 const MESSAGE_CATEGORY = 'message_reply';
 const CALL_CATEGORY = 'call';
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    // Suppress notification if user is viewing the chat
+    const chatId = notification?.request?.content?.data?.chatId;
+    const activeChatId = getActiveChatId();
+    if (chatId && activeChatId && chatId === activeChatId) {
+      return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+    }
+    return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true };
+  },
 });
 
 export const registerForPushNotifications = async () => {
@@ -33,7 +38,7 @@ export const registerForPushNotifications = async () => {
     return null;
   }
 
-  // Register notification categories for quick actions
+  // Register notification categories for quick actions (iOS)
   if (Platform.OS === 'ios') {
     await Notifications.setNotificationCategoryAsync(MESSAGE_CATEGORY, [
       {
@@ -50,6 +55,7 @@ export const registerForPushNotifications = async () => {
     ]);
   }
 
+  // Register notification categories with actions for Android
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('chatzz_messages', {
       name: 'Chatzz Messages',
@@ -70,6 +76,21 @@ export const registerForPushNotifications = async () => {
       enableVibrate: true,
       bypassDnd: true,
     });
+
+    // Set up Android notification categories with reply action
+    await Notifications.setNotificationCategoryAsync(MESSAGE_CATEGORY, [
+      {
+        identifier: 'reply',
+        buttonTitle: 'Reply',
+        textInput: { submitButtonTitle: 'Send', placeholder: 'Type a reply...' },
+        options: { isDestructive: false, opensAppToForeground: false },
+      },
+    ]);
+
+    await Notifications.setNotificationCategoryAsync(CALL_CATEGORY, [
+      { identifier: 'answer', buttonTitle: '✅ Answer', options: { opensAppToForeground: true } },
+      { identifier: 'decline', buttonTitle: '❌ Decline', options: { isDestructive: true, opensAppToForeground: false } },
+    ]);
   }
 
   try {

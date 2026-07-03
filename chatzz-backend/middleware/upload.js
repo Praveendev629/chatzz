@@ -8,7 +8,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const storage = new CloudinaryStorage({
+const profileStorage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: 'chatzz/profiles',
@@ -17,4 +17,15 @@ const storage = new CloudinaryStorage({
   },
 });
 
-module.exports = multer({ storage });
+const messageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'chatzz/messages',
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'mp3', 'm4a', 'mp4', 'pdf', 'doc', 'docx', 'txt'],
+  },
+});
+
+module.exports = {
+  profileUpload: multer({ storage: profileStorage }),
+  messageUpload: multer({ storage: messageStorage }),
+};

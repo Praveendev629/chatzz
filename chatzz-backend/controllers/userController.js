@@ -71,7 +71,7 @@ const updateProfile = async (req, res) => {
     if (req.body.settings) updates.settings = req.body.settings;
 
     if (req.file) {
-      updates.profilePicture = `${req.protocol}://${req.get('host')}/uploads/images/${req.file.filename}`;
+      updates.profilePicture = req.file.path;
     }
 
     // Check username uniqueness

@@ -10,7 +10,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { messageAPI } from '../services/api';
-import { getSocket, emitSendMessage, emitTyping, emitStopTyping, emitMarkSeen } from '../services/socket';
+import { getSocket, emitSendMessage, emitTyping, emitStopTyping, emitMarkSeen, emitViewingChat } from '../services/socket';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useTheme } from '../context/ThemeContext';
@@ -47,7 +47,11 @@ const ChatScreen = ({ route, navigation }) => {
   useFocusEffect(
     useCallback(() => {
       setActiveChatId(chatId);
-      return () => clearActiveChatId();
+      emitViewingChat(chatId);
+      return () => {
+        clearActiveChatId();
+        emitViewingChat(null);
+      };
     }, [chatId])
   );
 
@@ -279,9 +283,6 @@ const ChatScreen = ({ route, navigation }) => {
     }
   };
 
-  const startVoiceCall = () => navigation.navigate('Call', { participant, isIncoming: false, callType: 'voice' });
-  const startVideoCall = () => navigation.navigate('Call', { participant, isIncoming: false, callType: 'video' });
-
   const formatDuration = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
     const s = (secs % 60).toString().padStart(2, '0');
@@ -327,12 +328,6 @@ const ChatScreen = ({ route, navigation }) => {
           </Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerActionBtn} onPress={startVoiceCall}>
-            <Ionicons name="call-outline" size={22} color={C.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerActionBtn} onPress={startVideoCall}>
-            <Ionicons name="videocam-outline" size={22} color={C.text} />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.headerActionBtn} onPress={() =>
             Alert.alert('Options', '', [
               { text: 'Clear Chat', onPress: () => {} },

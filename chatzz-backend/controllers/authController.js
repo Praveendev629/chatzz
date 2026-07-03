@@ -36,9 +36,7 @@ const register = async (req, res) => {
     }
 
     // Create new user
-    const profilePicture = req.file
-      ? `${req.protocol}://${req.get('host')}/uploads/images/${req.file.filename}`
-      : null;
+    const profilePicture = req.file ? req.file.path : null;
 
     user = await User.create({ username, deviceId, fcmToken, profilePicture });
 
