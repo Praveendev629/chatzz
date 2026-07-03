@@ -29,6 +29,7 @@ const HomeScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const scrollRef = useRef(null);
   const tabAnim = useRef(new Animated.Value(0)).current;
@@ -132,6 +133,15 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate('Chat', { chatId: chat._id, participant: otherParticipant });
   };
 
+  const filteredChats = chats.filter((chat) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const other = chat.participants.find((p) => p._id !== user._id);
+    const nameMatch = other?.username?.toLowerCase().includes(q);
+    const msgMatch = chat.lastMessage?.content?.toLowerCase().includes(q);
+    return nameMatch || msgMatch;
+  });
+
   const handleDeleteChat = async (chatId) => {
     Alert.alert('Delete Chat', 'Delete this conversation?', [
       { text: 'Cancel', style: 'cancel' },
@@ -206,6 +216,24 @@ const HomeScreen = ({ navigation }) => {
       >
         {/* Tab 0: Chats */}
         <View style={{ width }}>
+          {/* Search Bar */}
+          <View style={[styles.searchContainer, { backgroundColor: C.inputBg, borderColor: C.border }]}>
+            <Ionicons name="search" size={18} color={C.textSecondary} style={{ marginRight: 8 }} />
+            <TextInput
+              style={[styles.searchInput, { color: C.text }]}
+              placeholder="Search chats or messages..."
+              placeholderTextColor={C.textMuted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={18} color={C.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+
           {requests.length > 0 && (
             <View style={[styles.requestsBanner, { backgroundColor: `${C.primary}20` }]}>
               <Ionicons name="person-add" size={18} color={C.primary} />
@@ -234,7 +262,7 @@ const HomeScreen = ({ navigation }) => {
             <ActivityIndicator style={{ marginTop: 60 }} size="large" color={C.primary} />
           ) : (
             <FlatList
-              data={chats}
+              data={filteredChats}
               keyExtractor={(item) => item._id}
               scrollEnabled={false}
               renderItem={({ item }) => (
@@ -274,27 +302,23 @@ const HomeScreen = ({ navigation }) => {
           <FlatList
             data={allUsers.filter(u => {
               if (u._id === user._id) return false;
-              // Show users who have an active chat with current user
+              // Remove users who have an active chat (request accepted)
               const hasChat = chats.some(c => c.participants.some(p => p._id === u._id));
-              // Show users who have pending chat requests
-              const hasRequest = requests.some(r => r.from._id === u._id);
-              return hasChat || hasRequest;
+              if (hasChat) return false;
+              return true;
             })}
             keyExtractor={(item) => item._id}
             scrollEnabled={false}
             renderItem={({ item }) => {
-              const hasChat = chats.some(c => c.participants.some(p => p._id === item._id));
               const hasRequest = requests.some(r => r.from._id === item._id);
               return (
                 <TouchableOpacity
                   style={[styles.userRow, { borderBottomColor: C.border }]}
                   onPress={() => {
-                    if (hasChat) {
-                      // Navigate to existing chat
-                      const chat = chats.find(c => c.participants.some(p => p._id === item._id));
-                      if (chat) openChat(chat);
+                    if (hasRequest) {
+                      // Already has pending request - show info
+                      Alert.alert('Request Pending', `You already have a pending request with ${item.username}`);
                     } else {
-                      // Navigate to search to send chat request
                       navigation.navigate('Search');
                     }
                   }}
@@ -315,10 +339,17 @@ const HomeScreen = ({ navigation }) => {
                   </View>
                   {hasRequest && (
                     <View style={styles.requestBadge}>
-                      <Text style={styles.requestBadgeText}>New</Text>
+                      <Text style={styles.requestBadgeText}>Pending</Text>
                     </View>
                   )}
-                  <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
+                  {!hasRequest && (
+                    <TouchableOpacity
+                      style={[styles.connectBtn, { backgroundColor: C.primary }]}
+                      onPress={() => navigation.navigate('Search')}
+                    >
+                      <Ionicons name="person-add" size={16} color="#fff" />
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
               );
             }}
@@ -326,11 +357,8 @@ const HomeScreen = ({ navigation }) => {
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Ionicons name="people-outline" size={80} color={C.border} />
-                <Text style={[styles.emptyTitle, { color: C.textMuted }]}>No connections yet</Text>
-                <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>Search for users to start chatting</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('Search')} style={[styles.startChatBtn, { backgroundColor: C.primary }]}>
-                  <Text style={styles.startChatBtnText}>Find People</Text>
-                </TouchableOpacity>
+                <Text style={[styles.emptyTitle, { color: C.textMuted }]}>No new people found</Text>
+                <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>All users are already connected</Text>
               </View>
             }
           />
@@ -340,7 +368,13 @@ const HomeScreen = ({ navigation }) => {
         <View style={[{ width }, styles.emptyContainer]}>
           <Ionicons name="ellipse-outline" size={80} color={C.border} />
           <Text style={[styles.emptyTitle, { color: C.textMuted }]}>Status</Text>
-          <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>Coming soon</Text>
+          <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>Share what's happening</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Status')}
+            style={[styles.startChatBtn, { backgroundColor: C.primary }]}
+          >
+            <Text style={styles.startChatBtnText}>View Status</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>
@@ -360,6 +394,13 @@ const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row', borderBottomWidth: 1,
   },
+  searchContainer: {
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: Spacing.lg, marginTop: Spacing.md,
+    borderRadius: 12, paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+  },
+  searchInput: { flex: 1, paddingVertical: 10, fontSize: 14 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
   tabText: { fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
   tabIndicator: {
@@ -401,6 +442,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   requestBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  connectBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
 });
 
 export default HomeScreen;

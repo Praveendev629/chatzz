@@ -102,7 +102,7 @@ const socketHandler = (io) => {
               token: receiver.fcmToken,
               title: socket.user.username,
               body: notifBody,
-              data: { type: 'message', chatId, senderId: userId },
+              data: { type: 'message', chatId, senderId: userId, senderName: socket.user.username },
             }).catch((e) => console.warn('Push notification error:', e.message));
           }
         }

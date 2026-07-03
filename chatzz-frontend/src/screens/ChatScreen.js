@@ -299,11 +299,7 @@ const ChatScreen = ({ route, navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: C.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-    >
+    <View style={[styles.container, { backgroundColor: C.background }]}>
       <StatusBar barStyle="light-content" backgroundColor={C.surface} />
 
       {/* Header */}
@@ -340,27 +336,34 @@ const ChatScreen = ({ route, navigation }) => {
       </View>
 
       {/* Messages */}
-      {loading ? (
-        <ActivityIndicator style={{ flex: 1 }} size="large" color={C.primary} />
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item._id}
-          renderItem={({ item }) => (
-            <MessageBubble
-              message={item}
-              isMine={item.sender?._id === user._id}
-              onLongPress={() => handleLongPressMessage(item)}
-              onImagePress={(url) => setImagePreview(url)}
-              colors={C}
-            />
-          )}
-          contentContainerStyle={styles.messagesList}
-          onContentSizeChange={scrollToBottom}
-          ListFooterComponent={isTyping ? <TypingIndicator username={participant.username} /> : null}
-        />
-      )}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+        enabled={Platform.OS === 'ios'}
+      >
+        {loading ? (
+          <ActivityIndicator style={{ flex: 1 }} size="large" color={C.primary} />
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(item) => item._id}
+            renderItem={({ item }) => (
+              <MessageBubble
+                message={item}
+                isMine={item.sender?._id === user._id}
+                onLongPress={() => handleLongPressMessage(item)}
+                onImagePress={(url) => setImagePreview(url)}
+                colors={C}
+              />
+            )}
+            contentContainerStyle={styles.messagesList}
+            onContentSizeChange={scrollToBottom}
+            ListFooterComponent={isTyping ? <TypingIndicator username={participant.username} /> : null}
+          />
+        )}
+      </KeyboardAvoidingView>
 
       {/* Input Bar */}
       <View style={[styles.inputBar, { backgroundColor: C.surface, borderTopColor: C.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
@@ -428,7 +431,7 @@ const ChatScreen = ({ route, navigation }) => {
           </View>
         </Modal>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 

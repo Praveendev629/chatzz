@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { profileUpload } = require('../middleware/upload');
+const { profileUpload, handleUploadError, buildFileUrl } = require('../middleware/upload');
 const { protect } = require('../middleware/auth');
 const {
   getAllUsers,
@@ -24,7 +24,12 @@ router.delete('/admin/:id', adminDeleteUser);
 router.get('/', protect, getAllUsers);
 router.get('/requests', protect, getChatRequests);
 router.get('/:id', protect, getUserProfile);
-router.put('/profile', protect, profileUpload.single('profilePicture'), updateProfile);
+router.put('/profile', protect, (req, res, next) => {
+  profileUpload.single('profilePicture')(req, res, (err) => {
+    if (err) return handleUploadError(err, req, res, next);
+    buildFileUrl(req, res, next);
+  });
+}, updateProfile);
 router.post('/:id/request', protect, sendChatRequest);
 router.put('/request/:userId/respond', protect, respondChatRequest);
 router.post('/:id/block', protect, blockUser);

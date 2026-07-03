@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSocket } from '../context/SocketContext';
-import { scheduleLocalNotification } from '../services/notifications';
+import { scheduleLocalNotification, addNotificationResponseListener } from '../services/notifications';
+import { messageAPI } from '../services/api';
 
 import SplashScreen from '../screens/SplashScreen';
 import GetStartedScreen from '../screens/GetStartedScreen';
@@ -18,6 +19,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import ChatScreen from '../screens/ChatScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CallScreen from '../screens/CallScreen';
+import StatusScreen from '../screens/StatusScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -54,6 +56,35 @@ const AppNavigator = ({ navigationRef }) => {
     return () => off('call_offer', handleIncomingCall);
   }, [user, on, off]);
 
+  // Handle notification quick-reply responses
+  useEffect(() => {
+    if (!user) return;
+
+    const subscription = addNotificationResponseListener((response) => {
+      const action = response.actionIdentifier;
+      const notification = response.notification;
+      const data = notification?.request?.content?.data;
+
+      // Handle quick reply from notification
+      if (action === 'reply' && data?.chatId && data?.senderId) {
+        const replyText = response.userInput;
+        if (replyText) {
+          messageAPI.quickReply(data.chatId, data.senderId, replyText).catch(() => {});
+        }
+      }
+
+      // Navigate to chat when notification is tapped
+      if (data?.type === 'message' && data?.chatId && navigationRef?.current) {
+        navigationRef.current.navigate('Chat', {
+          chatId: data.chatId,
+          participant: { _id: data.senderId, username: data.senderName },
+        });
+      }
+    });
+
+    return () => subscription?.remove();
+  }, [user]);
+
   if (loading || !splashDone) {
     return <SplashScreen onFinish={() => setSplashDone(true)} />;
   }
@@ -73,6 +104,7 @@ const AppNavigator = ({ navigationRef }) => {
             <Stack.Screen name="Chat" component={ChatScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="Status" component={StatusScreen} />
             <Stack.Screen
               name="Call"
               component={CallScreen}

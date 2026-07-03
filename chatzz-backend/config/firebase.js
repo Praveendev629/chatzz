@@ -43,6 +43,8 @@ const sendPushNotification = async ({ token, title, body, data = {} }) => {
           aps: {
             sound: 'notification.wav',
             badge: 1,
+            'mutable-content': 1,
+            'content-available': 1,
           },
         },
       },

@@ -118,6 +118,64 @@ const markSeen = async (req, res) => {
   }
 };
 
+// @desc    Quick reply from notification
+// @route   POST /api/messages/reply
+// @access  Private
+const quickReply = async (req, res) => {
+  try {
+    const { chatId, receiverId, content } = req.body;
+
+    if (!chatId || !receiverId || !content) {
+      return res.status(400).json({ success: false, message: 'chatId, receiverId, and content are required' });
+    }
+
+    const receiver = await User.findById(receiverId);
+    if (receiver?.blockedUsers?.includes(req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Cannot send message' });
+    }
+
+    const message = await Message.create({
+      chatId,
+      sender: req.user._id,
+      receiver: receiverId,
+      messageType: 'text',
+      content,
+      status: 'sent',
+    });
+
+    await Chat.findByIdAndUpdate(chatId, {
+      lastMessage: message._id,
+      lastMessageAt: new Date(),
+      $pull: { deletedFor: req.user._id },
+    });
+
+    const populatedMessage = await Message.findById(message._id).populate(
+      'sender', '_id username profilePicture'
+    );
+
+    // Notify via socket if possible
+    const io = req.app.get('io');
+    if (io) {
+      io.to(receiverId).emit('new_message', populatedMessage);
+      await Message.findByIdAndUpdate(message._id, { status: 'delivered', deliveredAt: new Date() });
+    }
+
+    // Push notification
+    if (receiver?.fcmToken) {
+      await sendPushNotification({
+        token: receiver.fcmToken,
+        title: req.user.username,
+        body: content.substring(0, 100),
+        data: { type: 'new_message', chatId, senderId: req.user._id.toString() },
+      });
+    }
+
+    res.status(201).json({ success: true, message: populatedMessage });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // @desc    Delete message
 // @route   DELETE /api/messages/:id
 // @access  Private
@@ -145,4 +203,4 @@ const deleteMessage = async (req, res) => {
   }
 };
 
-module.exports = { getMessages, sendMessage, markSeen, deleteMessage };
+module.exports = { getMessages, sendMessage, markSeen, deleteMessage, quickReply };

@@ -66,9 +66,21 @@ export const messageAPI = {
   getMessages: (chatId, page = 1) => api.get(`/messages/${chatId}?page=${page}&limit=50`),
   send: (formData) =>
     api.post('/messages', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  quickReply: (chatId, receiverId, content) =>
+    api.post('/messages/reply', { chatId, receiverId, content }),
   markSeen: (chatId) => api.put(`/messages/${chatId}/seen`),
   delete: (messageId, deleteForEveryone) =>
     api.delete(`/messages/${messageId}`, { data: { deleteForEveryone } }),
+};
+
+// ─── Status ──────────────────────────────────────────────────────────────────
+export const statusAPI = {
+  getAll: () => api.get('/status'),
+  getUserStatuses: (userId) => api.get(`/status/user/${userId}`),
+  create: (formData) =>
+    api.post('/status', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  view: (statusId) => api.put(`/status/${statusId}/view`),
+  delete: (statusId) => api.delete(`/status/${statusId}`),
 };
 
 export default api;

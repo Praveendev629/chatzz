@@ -119,7 +119,8 @@ Your `eas.json` should look like:
 
 #### 3. Build APK
 ```bash
-cd chatzz-frontend
+
+
 eas build -p android --profile preview
 ```
 
