@@ -283,6 +283,9 @@ const ChatScreen = ({ route, navigation }) => {
     }
   };
 
+  const startVoiceCall = () => navigation.navigate('Call', { participant, isIncoming: false, callType: 'voice' });
+  const startVideoCall = () => navigation.navigate('Call', { participant, isIncoming: false, callType: 'video' });
+
   const formatDuration = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
     const s = (secs % 60).toString().padStart(2, '0');
@@ -324,6 +327,12 @@ const ChatScreen = ({ route, navigation }) => {
           </Text>
         </View>
         <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={startVoiceCall}>
+            <Ionicons name="call-outline" size={22} color={C.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={startVideoCall}>
+            <Ionicons name="videocam-outline" size={22} color={C.text} />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.headerActionBtn} onPress={() =>
             Alert.alert('Options', '', [
               { text: 'Clear Chat', onPress: () => {} },
