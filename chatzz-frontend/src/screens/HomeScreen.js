@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  RefreshControl, Alert, StatusBar, ActivityIndicator,
+  Alert, StatusBar, ActivityIndicator,
   Dimensions, ScrollView, Animated, PanResponder, Image, TextInput, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ import { useSocket } from '../context/SocketContext';
 import { useTheme } from '../context/ThemeContext';
 import { scheduleLocalNotification } from '../services/notifications';
 import { getActiveChatId } from '../utils/activeChat';
+import { chatCache } from '../utils/chatCache';
 import ChatListItem from '../components/ChatListItem';
 import { Spacing } from '../theme';
 
@@ -30,7 +31,6 @@ const HomeScreen = ({ navigation }) => {
   const [statuses, setStatuses] = useState([]);
   const [ownStatuses, setOwnStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const [showStatusViewer, setShowStatusViewer] = useState(false);
   const [viewingStatuses, setViewingStatuses] = useState([]);
@@ -45,10 +45,9 @@ const HomeScreen = ({ navigation }) => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchChats();
-      fetchRequests();
-      fetchAllUsers();
-      fetchStatuses();
+      // Data is already loaded via auto-refresh
+      // Just ensure we have fresh data when screen is focused
+      fetchChats(false);
     }, [])
   );
 
@@ -108,12 +107,21 @@ const HomeScreen = ({ navigation }) => {
     };
   }, [on, off]);
 
-  const fetchChats = async () => {
+  const fetchChats = async (showLoader = false) => {
     try {
+      if (showLoader) setLoading(true);
       const result = await chatAPI.getAll();
-      setChats(result.chats || []);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); setRefreshing(false); }
+      const newChats = result.chats || [];
+      setChats(newChats);
+      await chatCache.saveChats(newChats);
+    } catch (err) {
+      console.error(err);
+      // Load from cache on error
+      const cached = await chatCache.loadChats();
+      if (cached) setChats(cached);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchRequests = async () => {
@@ -126,8 +134,14 @@ const HomeScreen = ({ navigation }) => {
   const fetchAllUsers = async () => {
     try {
       const result = await userAPI.getAll('');
-      setAllUsers(result.users || []);
-    } catch (err) { console.error(err); }
+      const users = result.users || [];
+      setAllUsers(users);
+      await chatCache.saveUsers(users);
+    } catch (err) {
+      console.error(err);
+      const cached = await chatCache.loadUsers();
+      if (cached) setAllUsers(cached);
+    }
   };
 
   const fetchStatuses = async () => {
@@ -137,6 +151,39 @@ const HomeScreen = ({ navigation }) => {
       setOwnStatuses(result.ownStatuses || []);
     } catch (err) { console.error(err); }
   };
+
+  // Auto-refresh interval
+  const refreshInterval = useRef(null);
+
+  useEffect(() => {
+    // Load from cache immediately
+    const loadCachedData = async () => {
+      const cachedChats = await chatCache.loadChats();
+      if (cachedChats) {
+        setChats(cachedChats);
+        setLoading(false);
+      }
+    };
+    loadCachedData();
+
+    // Initial fetch
+    fetchChats(true);
+    fetchRequests();
+    fetchAllUsers();
+    fetchStatuses();
+
+    // Set up auto-refresh every 3 seconds
+    refreshInterval.current = setInterval(() => {
+      fetchChats(false);
+      fetchRequests();
+    }, 3000);
+
+    return () => {
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+      }
+    };
+  }, []);
 
   const createTextStatus = async () => {
     if (!statusText.trim()) return;
@@ -201,6 +248,18 @@ const HomeScreen = ({ navigation }) => {
     try {
       await statusAPI.view(status._id);
     } catch (err) { console.error(err); }
+  };
+
+  const getTimeAgo = (date) => {
+    const now = new Date();
+    const then = new Date(date);
+    const diffMs = now - then;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${Math.floor(diffHours / 24)}d ago`;
   };
 
   const handleChatRequest = async (request, action) => {
@@ -365,7 +424,6 @@ const HomeScreen = ({ navigation }) => {
                   ])}
                 />
               )}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchChats(); }} tintColor={C.primary} />}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <Ionicons name="chatbubbles-outline" size={80} color={C.border} />
@@ -436,7 +494,6 @@ const HomeScreen = ({ navigation }) => {
                 </TouchableOpacity>
               );
             }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAllUsers(); }} tintColor={C.primary} />}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Ionicons name="people-outline" size={80} color={C.border} />
@@ -449,71 +506,94 @@ const HomeScreen = ({ navigation }) => {
 
         {/* Tab 2: Status */}
         <View style={{ width }}>
-          {/* My Status */}
-          <View style={[styles.myStatusSection, { borderBottomColor: C.border }]}>
-            <TouchableOpacity style={styles.myStatusRow} onPress={() => setShowCreateStatus(true)}>
-              <View style={[styles.myStatusAvatar, { backgroundColor: C.primary }]}>
+          {/* My Status - WhatsApp Style */}
+          <TouchableOpacity
+            style={[styles.myStatusSection, { borderBottomColor: C.border }]}
+            onPress={() => setShowCreateStatus(true)}
+          >
+            <View style={styles.myStatusAvatarContainer}>
+              <View style={[styles.myStatusAvatarRing, { borderColor: C.primary }]}>
                 {user.profilePicture ? (
                   <Image source={{ uri: user.profilePicture }} style={styles.myStatusAvatarImg} />
                 ) : (
-                  <Ionicons name="person" size={24} color="#fff" />
+                  <View style={[styles.myStatusAvatarPlaceholder, { backgroundColor: C.primary }]}>
+                    <Ionicons name="person" size={22} color="#fff" />
+                  </View>
                 )}
-                <View style={[styles.addStatusBadge, { backgroundColor: C.primary }]}>
-                  <Ionicons name="add" size={14} color="#fff" />
-                </View>
               </View>
-              <View style={styles.myStatusInfo}>
-                <Text style={[styles.myStatusTitle, { color: C.text }]}>My Status</Text>
-                <Text style={[styles.myStatusSubtitle, { color: C.textMuted }]}>
-                  {ownStatuses.length > 0 ? `${ownStatuses.length} status update${ownStatuses.length > 1 ? 's' : ''}` : 'Tap to add status'}
-                </Text>
+              <View style={[styles.addStatusIcon, { backgroundColor: C.primary }]}>
+                <Ionicons name="add" size={16} color="#fff" />
               </View>
-            </TouchableOpacity>
+            </View>
+            <View style={styles.myStatusInfo}>
+              <Text style={[styles.myStatusTitle, { color: C.text }]}>My Status</Text>
+              <Text style={[styles.myStatusSubtitle, { color: C.textMuted }]}>
+                {ownStatuses.length > 0 ? 'Tap to view status' : 'Tap to add status update'}
+              </Text>
+            </View>
             {ownStatuses.length > 0 && (
-              <TouchableOpacity
-                style={[styles.viewMyStatusBtn, { backgroundColor: `${C.primary}20` }]}
-                onPress={() => openStatusViewer([{ statuses: ownStatuses }], 0)}
-              >
-                <Text style={[styles.viewMyStatusText, { color: C.primary }]}>View</Text>
-              </TouchableOpacity>
+              <View style={[styles.statusCountBadge, { backgroundColor: C.primary }]}>
+                <Text style={styles.statusCountText}>{ownStatuses.length}</Text>
+              </View>
             )}
-          </View>
+          </TouchableOpacity>
+
+          {/* Recent Updates Header */}
+          {statuses.length > 0 && (
+            <View style={[styles.statusSectionHeader, { borderBottomColor: C.border }]}>
+              <Text style={[styles.statusSectionTitle, { color: C.textMuted }]}>RECENT UPDATES</Text>
+            </View>
+          )}
 
           {/* Other Users' Statuses */}
           <FlatList
             data={statuses}
             keyExtractor={(item) => item.user._id}
             scrollEnabled={false}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.statusRow, { borderBottomColor: C.border }]}
-                onPress={() => openStatusViewer(item.statuses, 0)}
-              >
-                <View style={[
-                  styles.statusAvatar,
-                  item.hasUnviewed && { borderColor: '#FFD600', borderWidth: 3 }
-                ]}>
-                  {item.user.profilePicture ? (
-                    <Image source={{ uri: item.user.profilePicture }} style={styles.statusAvatarImg} />
-                  ) : (
-                    <View style={[styles.statusAvatarPlaceholder, { backgroundColor: C.primary }]}>
-                      <Ionicons name="person" size={24} color="#fff" />
+            renderItem={({ item }) => {
+              const lastStatus = item.statuses[0];
+              const timeAgo = lastStatus ? getTimeAgo(lastStatus.createdAt) : '';
+              return (
+                <TouchableOpacity
+                  style={[styles.statusRow, { borderBottomColor: C.border }]}
+                  onPress={() => openStatusViewer(item.statuses, 0)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.statusAvatarContainer}>
+                    <View style={[
+                      styles.statusAvatarRing,
+                      item.hasUnviewed
+                        ? { borderColor: '#00D26A' }
+                        : { borderColor: C.textMuted }
+                    ]}>
+                      {item.user.profilePicture ? (
+                        <Image source={{ uri: item.user.profilePicture }} style={styles.statusAvatarImg} />
+                      ) : (
+                        <View style={[styles.statusAvatarPlaceholder, { backgroundColor: C.primary }]}>
+                          <Ionicons name="person" size={22} color="#fff" />
+                        </View>
+                      )}
                     </View>
-                  )}
-                </View>
-                <View style={styles.statusInfo}>
-                  <Text style={[styles.statusName, { color: C.text }]}>{item.user.username}</Text>
-                  <Text style={[styles.statusTime, { color: C.textMuted }]}>
-                    {item.statuses.length} update{item.statuses.length > 1 ? 's' : ''}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )}
+                  </View>
+                  <View style={styles.statusInfo}>
+                    <Text style={[styles.statusName, { color: C.text }]}>{item.user.username}</Text>
+                    <Text style={[styles.statusTime, { color: C.textMuted }]}>
+                      {timeAgo} · {item.statuses.length} update{item.statuses.length > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+                </TouchableOpacity>
+              );
+            }}
             ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Ionicons name="ellipse-outline" size={80} color={C.border} />
-                <Text style={[styles.emptyTitle, { color: C.textMuted }]}>No statuses yet</Text>
-                <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>Be the first to share a status</Text>
+              <View style={styles.emptyStatusContainer}>
+                <View style={[styles.emptyStatusIcon, { backgroundColor: `${C.primary}15` }]}>
+                  <Ionicons name="image-outline" size={48} color={C.primary} />
+                </View>
+                <Text style={[styles.emptyStatusTitle, { color: C.text }]}>No status updates yet</Text>
+                <Text style={[styles.emptyStatusSubtitle, { color: C.textMuted }]}>
+                  When your contacts post status updates, they'll appear here
+                </Text>
               </View>
             }
           />
@@ -679,35 +759,55 @@ const styles = StyleSheet.create({
   },
   requestBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   connectBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  // Status styles
+  // Status styles - WhatsApp-like design
   myStatusSection: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.lg, paddingVertical: 12, borderBottomWidth: 1,
+    paddingHorizontal: Spacing.lg, paddingVertical: 16, borderBottomWidth: 1,
   },
-  myStatusRow: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  myStatusAvatar: { width: 56, height: 56, borderRadius: 28, overflow: 'hidden', position: 'relative' },
-  myStatusAvatarImg: { width: 56, height: 56, borderRadius: 28 },
-  addStatusBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 20, height: 20, borderRadius: 10,
+  myStatusAvatarContainer: { position: 'relative', width: 56, height: 56 },
+  myStatusAvatarRing: {
+    width: 56, height: 56, borderRadius: 28, borderWidth: 2.5,
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+  },
+  myStatusAvatarImg: { width: 50, height: 50, borderRadius: 25 },
+  myStatusAvatarPlaceholder: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
+  addStatusIcon: {
+    position: 'absolute', bottom: -2, right: -2,
+    width: 22, height: 22, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: '#000',
   },
-  myStatusInfo: { flex: 1, marginLeft: 12 },
+  myStatusInfo: { flex: 1, marginLeft: 14 },
   myStatusTitle: { fontSize: 16, fontWeight: '600' },
-  myStatusSubtitle: { fontSize: 13, marginTop: 2 },
-  viewMyStatusBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16 },
-  viewMyStatusText: { fontSize: 13, fontWeight: '600' },
+  myStatusSubtitle: { fontSize: 13, marginTop: 3, opacity: 0.6 },
+  statusCountBadge: {
+    width: 24, height: 24, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  statusCountText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  statusSectionHeader: {
+    paddingHorizontal: Spacing.lg, paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  statusSectionTitle: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
   statusRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: Spacing.lg, paddingVertical: 12, borderBottomWidth: 1,
   },
-  statusAvatar: { width: 56, height: 56, borderRadius: 28, padding: 3 },
-  statusAvatarImg: { width: 50, height: 50, borderRadius: 25 },
-  statusAvatarPlaceholder: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
-  statusInfo: { flex: 1, marginLeft: 12 },
-  statusName: { fontSize: 16, fontWeight: '600' },
-  statusTime: { fontSize: 13, marginTop: 2 },
+  statusAvatarContainer: { width: 56, height: 56, justifyContent: 'center', alignItems: 'center' },
+  statusAvatarRing: {
+    width: 52, height: 52, borderRadius: 26, borderWidth: 2.5,
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+  },
+  statusAvatarImg: { width: 46, height: 46, borderRadius: 23 },
+  statusAvatarPlaceholder: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+  statusInfo: { flex: 1, marginLeft: 14 },
+  statusName: { fontSize: 16, fontWeight: '500' },
+  statusTime: { fontSize: 13, marginTop: 3, opacity: 0.6 },
+  emptyStatusContainer: { flex: 1, alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
+  emptyStatusIcon: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  emptyStatusTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
+  emptyStatusSubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
   // Status Viewer Modal
   statusViewerOverlay: { flex: 1, backgroundColor: '#000' },
   statusViewerHeader: {

@@ -36,7 +36,8 @@
     "socket.io-client": "^4.7.1",
     "zustand": "^4.4.3",
     "expo-splash-screen": "~0.20.5",
-    "expo-build-properties": "~0.8.3"
+    "expo-build-properties": "~0.8.3",
+    "@react-native-async-storage/async-storage": "1.18.2"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

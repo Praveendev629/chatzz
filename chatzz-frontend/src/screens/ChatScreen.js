@@ -18,6 +18,7 @@ import MessageBubble from '../components/MessageBubble';
 import TypingIndicator from '../components/TypingIndicator';
 import { Colors, Spacing, BorderRadius } from '../theme';
 import { setActiveChatId, clearActiveChatId } from '../utils/activeChat';
+import { chatCache } from '../utils/chatCache';
 import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
@@ -121,11 +122,43 @@ const ChatScreen = ({ route, navigation }) => {
   const fetchMessages = async () => {
     try {
       const result = await messageAPI.getMessages(chatId);
-      setMessages(result.messages || []);
+      const msgs = result.messages || [];
+      setMessages(msgs);
+      await chatCache.saveMessages(chatId, msgs);
       markSeen();
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error(err);
+      // Load from cache on error
+      const cached = await chatCache.loadMessages(chatId);
+      if (cached) setMessages(cached);
+    } finally { setLoading(false); }
   };
+
+  // Auto-refresh messages every 3 seconds
+  const refreshInterval = useRef(null);
+
+  useEffect(() => {
+    // Load from cache immediately
+    const loadCachedMessages = async () => {
+      const cached = await chatCache.loadMessages(chatId);
+      if (cached) {
+        setMessages(cached);
+        setLoading(false);
+      }
+    };
+    loadCachedMessages();
+
+    // Set up auto-refresh
+    refreshInterval.current = setInterval(() => {
+      fetchMessages();
+    }, 3000);
+
+    return () => {
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+      }
+    };
+  }, [chatId]);
 
   const markSeen = () => emitMarkSeen({ chatId, senderId: participant._id });
 
