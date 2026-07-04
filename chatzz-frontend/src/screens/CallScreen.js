@@ -1,6 +1,6 @@
 /**
- * CallScreen.js - Enhanced with ringtone, video call, record, screen share
- * Requires react-native-webrtc (see README for build setup)
+ * CallScreen.js - Voice and Video calls with WebRTC
+ * Requires development build with react-native-webrtc
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -13,18 +13,24 @@ import { getSocket } from '../services/socket';
 
 let RTCPeerConnection = null;
 let mediaDevices = null;
+let RTCView = null;
 try {
   const webrtc = require('react-native-webrtc');
   RTCPeerConnection = webrtc.RTCPeerConnection;
   mediaDevices = webrtc.mediaDevices;
+  RTCView = webrtc.RTCView;
 } catch (_) {}
 
+// Better ICE configuration for stability
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 const CallScreen = ({ route, navigation }) => {
@@ -38,6 +44,7 @@ const CallScreen = ({ route, navigation }) => {
   const [isVideoEnabled, setIsVideoEnabled] = useState(callType === 'video');
   const [isRecording, setIsRecording] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [remoteStream, setRemoteStream] = useState(null);
 
   const pcRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -49,7 +56,7 @@ const CallScreen = ({ route, navigation }) => {
     if (!RTCPeerConnection) {
       Alert.alert(
         'Call Feature',
-        'Calls require a development build with react-native-webrtc. See README for setup.',
+        'Calls require a development build with react-native-webrtc. Run: npx expo run:android / npx expo run:ios',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
       return;
@@ -98,29 +105,79 @@ const CallScreen = ({ route, navigation }) => {
 
   const startCall = async () => {
     try {
-      const constraints = { audio: true, video: callType === 'video' };
+      const constraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+        },
+        video: callType === 'video' ? {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 24 },
+        } : false,
+      };
+
       const stream = await mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
       pcRef.current = pc;
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
+      // Add local tracks to peer connection
+      stream.getTracks().forEach((track) => {
+        pc.addTrack(track, stream);
+      });
+
+      // Handle ICE candidates
       pc.onicecandidate = (e) => {
         if (e.candidate) {
-          socket?.emit('call_ice_candidate', { to: participant._id, candidate: e.candidate });
+          socket?.emit('call_ice_candidate', {
+            to: participant._id,
+            candidate: e.candidate,
+          });
         }
       };
 
+      // Handle connection state changes
+      pc.onconnectionstatechange = () => {
+        console.log('Connection state:', pc.connectionState);
+        if (pc.connectionState === 'failed') {
+          Alert.alert('Connection Lost', 'Call connection failed');
+          cleanup();
+          navigation.goBack();
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log('ICE state:', pc.iceConnectionState);
+      };
+
+      // Handle remote stream
+      pc.ontrack = (event) => {
+        console.log('Got remote track:', event.track.kind);
+        if (event.streams && event.streams[0]) {
+          setRemoteStream(event.streams[0]);
+        }
+      };
+
+      // Create offer
       const callOffer = await pc.createOffer();
       await pc.setLocalDescription(callOffer);
+
       socket?.emit('call_offer', {
         to: participant._id,
         offer: callOffer,
         callType,
-        caller: { _id: user._id, username: user.username, profilePicture: user.profilePicture },
+        caller: {
+          _id: user._id,
+          username: user.username,
+          profilePicture: user.profilePicture,
+        },
       });
     } catch (err) {
+      console.error('Start call error:', err);
       Alert.alert('Error', 'Could not start call: ' + err.message);
       navigation.goBack();
     }
@@ -130,26 +187,72 @@ const CallScreen = ({ route, navigation }) => {
     await stopRingtone();
     setCallStatus('connected');
     startDurationTimer();
+
     try {
-      const constraints = { audio: true, video: callType === 'video' };
+      const constraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+        },
+        video: callType === 'video' ? {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 24 },
+        } : false,
+      };
+
       const stream = await mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
       pcRef.current = pc;
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
+      // Add local tracks
+      stream.getTracks().forEach((track) => {
+        pc.addTrack(track, stream);
+      });
+
+      // Handle ICE candidates
       pc.onicecandidate = (e) => {
         if (e.candidate) {
-          socket?.emit('call_ice_candidate', { to: participant._id, candidate: e.candidate });
+          socket?.emit('call_ice_candidate', {
+            to: participant._id,
+            candidate: e.candidate,
+          });
         }
       };
 
+      // Handle connection state
+      pc.onconnectionstatechange = () => {
+        console.log('Connection state:', pc.connectionState);
+        if (pc.connectionState === 'failed') {
+          Alert.alert('Connection Lost', 'Call connection failed');
+          cleanup();
+          navigation.goBack();
+        }
+      };
+
+      // Handle remote stream
+      pc.ontrack = (event) => {
+        console.log('Got remote track:', event.track.kind);
+        if (event.streams && event.streams[0]) {
+          setRemoteStream(event.streams[0]);
+        }
+      };
+
+      // Set remote description and create answer
       await pc.setRemoteDescription(offer);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      socket?.emit('call_answer', { to: participant._id, answer });
+
+      socket?.emit('call_answer', {
+        to: participant._id,
+        answer,
+      });
     } catch (err) {
+      console.error('Answer call error:', err);
       Alert.alert('Error', 'Could not answer call');
       navigation.goBack();
     }
@@ -165,7 +268,11 @@ const CallScreen = ({ route, navigation }) => {
 
   const handleIceCandidate = async ({ candidate }) => {
     if (pcRef.current && candidate) {
-      await pcRef.current.addIceCandidate(candidate);
+      try {
+        await pcRef.current.addIceCandidate(candidate);
+      } catch (err) {
+        console.warn('ICE candidate error:', err.message);
+      }
     }
   };
 
@@ -196,6 +303,9 @@ const CallScreen = ({ route, navigation }) => {
     await stopRingtone();
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     pcRef.current?.close();
+    pcRef.current = null;
+    localStreamRef.current = null;
+    setRemoteStream(null);
     socket?.off('call_answer', handleAnswer);
     socket?.off('call_ice_candidate', handleIceCandidate);
     socket?.off('call_ended', handleCallEnded);
@@ -207,15 +317,19 @@ const CallScreen = ({ route, navigation }) => {
 
   const toggleMute = () => {
     if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach((t) => { t.enabled = isMuted; });
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      audioTracks.forEach((t) => { t.enabled = !isMuted; });
       setIsMuted(!isMuted);
     }
   };
 
   const toggleVideo = () => {
     if (localStreamRef.current) {
-      localStreamRef.current.getVideoTracks().forEach((t) => { t.enabled = !isVideoEnabled; });
-      setIsVideoEnabled(!isVideoEnabled);
+      const videoTracks = localStreamRef.current.getVideoTracks();
+      if (videoTracks.length > 0) {
+        videoTracks.forEach((t) => { t.enabled = !isVideoEnabled; });
+        setIsVideoEnabled(!isVideoEnabled);
+      }
     }
   };
 
@@ -254,19 +368,40 @@ const CallScreen = ({ route, navigation }) => {
     }
   };
 
-  const switchToVideo = () => {
-    Alert.alert('Switch to Video', 'Switch this call to video?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Switch', onPress: () => {
-        socket?.emit('call_switch_video', { to: participant._id });
-        setIsVideoEnabled(true);
-        toggleVideo();
-      }},
-    ]);
-  };
+  const switchToVideo = async () => {
+    try {
+      // Get video stream
+      const stream = await mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 24 },
+        },
+      });
 
-  const shareScreen = () => {
-    Alert.alert('Screen Share', 'Screen sharing will be available in the next update. Currently requires additional native setup (see README).', [{ text: 'OK' }]);
+      // Add video tracks to peer connection
+      if (pcRef.current && stream) {
+        const videoTrack = stream.getVideoTracks()[0];
+        const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) {
+          await sender.replaceTrack(videoTrack);
+        } else {
+          pcRef.current.addTrack(videoTrack, stream);
+        }
+
+        // Update local stream
+        if (localStreamRef.current) {
+          localStreamRef.current.addTrack(videoTrack);
+        }
+
+        setIsVideoEnabled(true);
+        Alert.alert('Video Started', 'Your camera is now active');
+      }
+    } catch (err) {
+      console.error('Switch to video error:', err);
+      Alert.alert('Error', 'Could not start video: ' + err.message);
+    }
   };
 
   const startDurationTimer = () => {
@@ -291,37 +426,80 @@ const CallScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0D0D2B" />
 
-      {/* Pulsing background for incoming */}
-      {callStatus === 'calling' || callStatus === 'incoming' ? (
-        <View style={styles.pulseRing} />
-      ) : null}
+      {/* Video Views (shown during video call) */}
+      {isVideoEnabled && callStatus === 'connected' && (
+        <View style={styles.videoContainer}>
+          {/* Remote Video (full screen) */}
+          {remoteStream ? (
+            <RTCView
+              streamURL={remoteStream.toURL()}
+              style={styles.remoteVideo}
+              objectFit="cover"
+            />
+          ) : (
+            <View style={[styles.remoteVideo, styles.waitingVideo]}>
+              <Text style={styles.waitingText}>Waiting for video...</Text>
+            </View>
+          )}
 
-      {/* Caller Info */}
-      <View style={styles.callerSection}>
-        {participant.profilePicture ? (
-          <Image source={{ uri: participant.profilePicture }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Ionicons name="person" size={50} color="#ccc" />
-          </View>
-        )}
-        <Text style={styles.callerName}>{participant.username}</Text>
-        <Text style={styles.callStatus}>{statusText}</Text>
-        {callStatus === 'connected' && (
-          <View style={styles.callQuality}>
-            <Ionicons name="wifi" size={14} color="#4CAF50" />
-            <Text style={styles.callQualityText}>Good quality</Text>
-          </View>
-        )}
-      </View>
+          {/* Local Video (small preview) */}
+          {localStreamRef.current && (
+            <View style={styles.localVideoContainer}>
+              <RTCView
+                streamURL={localStreamRef.current.toURL()}
+                style={styles.localVideo}
+                objectFit="cover"
+                mirror={true}
+              />
+            </View>
+          )}
+        </View>
+      )}
 
-      {/* Extra controls (shown during active call) */}
+      {/* Voice Call UI (shown when video is off) */}
+      {!isVideoEnabled && (
+        <>
+          {callStatus === 'calling' || callStatus === 'incoming' ? (
+            <View style={styles.pulseRing} />
+          ) : null}
+
+          <View style={styles.callerSection}>
+            {participant.profilePicture ? (
+              <Image source={{ uri: participant.profilePicture }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons name="person" size={50} color="#ccc" />
+              </View>
+            )}
+            <Text style={styles.callerName}>{participant.username}</Text>
+            <Text style={styles.callStatus}>{statusText}</Text>
+            {callStatus === 'connected' && (
+              <View style={styles.callQuality}>
+                <Ionicons name="wifi" size={14} color="#4CAF50" />
+                <Text style={styles.callQualityText}>Connected</Text>
+              </View>
+            )}
+          </View>
+        </>
+      )}
+
+      {/* Extra controls during connected call */}
       {callStatus === 'connected' && (
         <View style={styles.extraControls}>
-          <CtrlBtn icon="radio-button-on" label={isRecording ? 'Stop Rec' : 'Record'} onPress={toggleRecording} active={isRecording} activeColor="#FF1744" />
-          <CtrlBtn icon="videocam" label="Video" onPress={callType === 'voice' ? switchToVideo : toggleVideo} active={isVideoEnabled} activeColor="#2196F3" />
-          <CtrlBtn icon="phone-landscape" label="Screen Share" onPress={shareScreen} />
-          <CtrlBtn icon="add-circle-outline" label="More" onPress={() => Alert.alert('More options', 'Coming soon')} />
+          <CtrlBtn
+            icon="radio-button-on"
+            label={isRecording ? 'Stop Rec' : 'Record'}
+            onPress={toggleRecording}
+            active={isRecording}
+            activeColor="#FF1744"
+          />
+          <CtrlBtn
+            icon="videocam"
+            label={isVideoEnabled ? 'Stop Video' : 'Video'}
+            onPress={callType === 'voice' ? switchToVideo : toggleVideo}
+            active={isVideoEnabled}
+            activeColor="#2196F3"
+          />
         </View>
       )}
 
@@ -343,11 +521,21 @@ const CallScreen = ({ route, navigation }) => {
           </View>
         ) : (
           <View style={styles.activeControls}>
-            <CtrlBtn icon={isMuted ? 'mic-off' : 'mic'} label={isMuted ? 'Unmute' : 'Mute'} onPress={toggleMute} active={isMuted} />
+            <CtrlBtn
+              icon={isMuted ? 'mic-off' : 'mic'}
+              label={isMuted ? 'Unmute' : 'Mute'}
+              onPress={toggleMute}
+              active={isMuted}
+            />
             <TouchableOpacity style={styles.endCallBtn} onPress={endCall}>
               <Ionicons name="call" size={34} color="#fff" style={{ transform: [{ rotate: '135deg' }] }} />
             </TouchableOpacity>
-            <CtrlBtn icon={isSpeaker ? 'volume-high' : 'volume-medium'} label="Speaker" onPress={toggleSpeaker} active={isSpeaker} />
+            <CtrlBtn
+              icon={isSpeaker ? 'volume-high' : 'volume-medium'}
+              label="Speaker"
+              onPress={toggleSpeaker}
+              active={isSpeaker}
+            />
           </View>
         )}
       </View>
@@ -356,31 +544,166 @@ const CallScreen = ({ route, navigation }) => {
 };
 
 const CtrlBtn = ({ icon, label, onPress, active, activeColor = 'rgba(255,255,255,0.3)' }) => (
-  <TouchableOpacity style={[styles.ctrlBtn, active && { backgroundColor: activeColor }]} onPress={onPress}>
+  <TouchableOpacity
+    style={[styles.ctrlBtn, active && { backgroundColor: activeColor }]}
+    onPress={onPress}
+  >
     <Ionicons name={icon} size={24} color="#fff" />
     <Text style={styles.ctrlLabel}>{label}</Text>
   </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0D0D2B', alignItems: 'center', justifyContent: 'space-between', paddingTop: 80, paddingBottom: 50 },
-  pulseRing: { position: 'absolute', width: 200, height: 200, borderRadius: 100, borderWidth: 2, borderColor: 'rgba(255,255,255,0.1)', top: 120 },
-  callerSection: { alignItems: 'center' },
-  avatar: { width: 130, height: 130, borderRadius: 65, marginBottom: 20, borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)' },
-  avatarPlaceholder: { width: 130, height: 130, borderRadius: 65, backgroundColor: '#2a2a2a', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  callerName: { fontSize: 30, fontWeight: '800', color: '#fff', marginBottom: 8 },
-  callStatus: { fontSize: 17, color: 'rgba(255,255,255,0.7)' },
-  callQuality: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 4 },
-  callQualityText: { fontSize: 12, color: '#4CAF50' },
-  extraControls: { flexDirection: 'row', justifyContent: 'space-around', width: '100%', paddingHorizontal: 24, marginBottom: 10 },
-  ctrlBtn: { alignItems: 'center', padding: 14, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.12)', minWidth: 68 },
-  ctrlLabel: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 5 },
-  controls: { width: '100%', paddingHorizontal: 40 },
-  incomingControls: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rejectBtn: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#F44336', alignItems: 'center', justifyContent: 'center' },
-  answerBtn: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#4CAF50', alignItems: 'center', justifyContent: 'center' },
-  activeControls: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
-  endCallBtn: { width: 76, height: 76, borderRadius: 38, backgroundColor: '#F44336', alignItems: 'center', justifyContent: 'center' },
+  container: {
+    flex: 1,
+    backgroundColor: '#0D0D2B',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 80,
+    paddingBottom: 50,
+  },
+  // Video styles
+  videoContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  remoteVideo: {
+    flex: 1,
+    backgroundColor: '#1a1a2e',
+  },
+  waitingVideo: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  waitingText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 16,
+  },
+  localVideoContainer: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 120,
+    height: 160,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#fff',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  localVideo: {
+    flex: 1,
+  },
+  // Voice call styles
+  pulseRing: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
+    top: 120,
+  },
+  callerSection: {
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    marginBottom: 20,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  avatarPlaceholder: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: '#2a2a2a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  callerName: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  callStatus: {
+    fontSize: 17,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  callQuality: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 4,
+  },
+  callQualityText: {
+    fontSize: 12,
+    color: '#4CAF50',
+  },
+  extraControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingHorizontal: 40,
+    marginBottom: 10,
+  },
+  ctrlBtn: {
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    minWidth: 68,
+  },
+  ctrlLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 5,
+  },
+  controls: {
+    width: '100%',
+    paddingHorizontal: 40,
+  },
+  incomingControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  rejectBtn: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#F44336',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  answerBtn: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  endCallBtn: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#F44336',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
 
 export default CallScreen;
