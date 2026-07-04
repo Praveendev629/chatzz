@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useRef } from 'react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native';
 import { StyleSheet } from 'react-native';
 import { NavigationContainerRef } from '@react-navigation/native';
 import { AuthProvider } from './src/context/AuthContext';
@@ -11,7 +11,8 @@ import {
   addNotificationListener,
   addNotificationResponseListener,
 } from './src/services/notifications';
-import { emitSendMessage } from './src/services/socket';
+import { getSocket, emitSendMessage } from './src/services/socket';
+import { messageAPI } from './src/services/api';
 
 export const navigationRef = React.createRef();
 
@@ -27,24 +28,42 @@ export default function App() {
 
       // Handle inline reply from notification
       if (actionIdentifier === 'reply' && response.userText) {
-        const replyText = response.userText;
+        const replyText = response.userText.trim();
+        if (!replyText) return;
+
         if (data?.chatId && data?.senderId) {
-          // Send the reply message via socket
-          emitSendMessage({
-            chatId: data.chatId,
-            receiverId: data.senderId,
-            messageType: 'text',
-            content: replyText,
-          });
+          // Try socket first, fallback to API
+          const socket = getSocket();
+          if (socket?.connected) {
+            emitSendMessage({
+              chatId: data.chatId,
+              receiverId: data.senderId,
+              messageType: 'text',
+              content: replyText,
+            });
+          } else {
+            // Fallback: send via API
+            const formData = new FormData();
+            formData.append('chatId', data.chatId);
+            formData.append('receiverId', data.senderId);
+            formData.append('messageType', 'text');
+            formData.append('content', replyText);
+            messageAPI.send(formData).catch(err => {
+              console.warn('Failed to send reply:', err.message);
+            });
+          }
         }
+
         // Navigate to the chat after sending reply
         if (data?.chatId && navigationRef.current) {
-          try {
-            navigationRef.current.navigate('Chat', {
-              chatId: data.chatId,
-              participant: data.participant || { _id: data.senderId, username: data.senderName },
-            });
-          } catch (_) {}
+          setTimeout(() => {
+            try {
+              navigationRef.current.navigate('Chat', {
+                chatId: data.chatId,
+                participant: data.participant || { _id: data.senderId, username: data.senderName },
+              });
+            } catch (_) {}
+          }, 500);
         }
         return;
       }

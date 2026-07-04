@@ -30,7 +30,6 @@ ios/
 .env.production.local
 
 
-
 # IDE
 .vscode/
 .idea/

@@ -192,8 +192,8 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
           <View style={[
             styles.bubble,
             isMine
-              ? [styles.bubbleMine, { backgroundColor: C.primary }]
-              : [styles.bubbleTheirs, { backgroundColor: C.card }],
+              ? [styles.bubbleMine, { backgroundColor: '#005C4B' }]
+              : [styles.bubbleTheirs, { backgroundColor: '#1F2C34' }],
           ]}>
             {renderReplyPreview()}
             {renderContent()}
@@ -211,14 +211,27 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
 };
 
 const styles = StyleSheet.create({
-  wrapper: { marginVertical: 2, marginHorizontal: Spacing.sm, flexDirection: 'row', alignItems: 'center' },
-  left: { justifyContent: 'flex-start' },
-  right: { justifyContent: 'flex-end' },
+  wrapper: { marginVertical: 2, marginHorizontal: 6, flexDirection: 'row', alignItems: 'center' },
+  left: { justifyContent: 'flex-start', paddingLeft: 4 },
+  right: { justifyContent: 'flex-end', paddingRight: 4 },
   replyIndicator: { position: 'absolute', left: 0, zIndex: 1 },
   animatedBubble: { flex: 1 },
-  bubble: { maxWidth: '78%', padding: 10, borderRadius: 18, minWidth: 80 },
-  bubbleMine: { borderBottomRightRadius: 4 },
-  bubbleTheirs: { borderBottomLeftRadius: 4 },
+  bubble: {
+    maxWidth: '80%', padding: 8, paddingTop: 6, paddingBottom: 4,
+    borderRadius: 8, minWidth: 80,
+  },
+  bubbleMine: {
+    borderBottomRightRadius: 0,
+    borderTopRightRadius: 8,
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 8,
+  },
+  bubbleTheirs: {
+    borderBottomLeftRadius: 0,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
+  },
   deletedBubble: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 8, paddingHorizontal: 12,
@@ -228,27 +241,28 @@ const styles = StyleSheet.create({
   replyPreview: {
     borderLeftWidth: 3,
     paddingLeft: 8,
-    marginBottom: 6,
+    marginBottom: 4,
     paddingVertical: 4,
     borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  replySender: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
-  replyContent: { fontSize: 12 },
-  messageText: { fontSize: 15, color: Colors.text, lineHeight: 20 },
-  messageTextMine: { color: '#fff' },
-  imageContent: { width: 210, height: 210, borderRadius: 14, marginBottom: 4 },
+  replySender: { fontSize: 12, fontWeight: '700', marginBottom: 2, color: '#00A884' },
+  replyContent: { fontSize: 12, color: 'rgba(255,255,255,0.6)' },
+  messageText: { fontSize: 15.5, color: '#E9EDEF', lineHeight: 20 },
+  messageTextMine: { color: '#E9EDEF' },
+  imageContent: { width: 220, height: 220, borderRadius: 8, marginBottom: 4 },
   audioContent: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingRight: 4, minWidth: 180 },
   audioWaveContainer: { flex: 1 },
   audioWave: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 4 },
   audioBar: { width: 3, borderRadius: 2, minHeight: 4 },
-  audioDuration: { fontSize: 11 },
+  audioDuration: { fontSize: 11, color: 'rgba(255,255,255,0.6)' },
   docContent: { flexDirection: 'row', alignItems: 'center', gap: 10, maxWidth: 200 },
-  docIconBox: { width: 46, height: 46, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  docName: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
-  docTap: { fontSize: 11, marginTop: 2 },
-  meta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4, gap: 4 },
-  time: { fontSize: 11, color: Colors.textMuted },
-  timeMine: { color: 'rgba(255,255,255,0.65)' },
+  docIconBox: { width: 46, height: 46, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
+  docName: { fontSize: 13, fontWeight: '600', flexShrink: 1, color: '#E9EDEF' },
+  docTap: { fontSize: 11, marginTop: 2, color: 'rgba(255,255,255,0.5)' },
+  meta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 2, gap: 4 },
+  time: { fontSize: 11, color: 'rgba(255,255,255,0.5)' },
+  timeMine: { color: 'rgba(255,255,255,0.7)' },
 });
 
 export default MessageBubble;

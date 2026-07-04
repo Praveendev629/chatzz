@@ -28,7 +28,6 @@ export const AuthProvider = ({ children }) => {
 
       if (cachedToken && cachedUserStr) {
         const cachedUser = JSON.parse(cachedUserStr);
-        // Restore local profile picture
         const localPic = await loadLocalProfilePic();
         if (localPic && !cachedUser.profilePicture?.startsWith('http')) {
           cachedUser.profilePicture = localPic;
@@ -40,23 +39,37 @@ export const AuthProvider = ({ children }) => {
         // Background sync: verify token + refresh FCM
         setLoading(false);
         try {
-          const deviceId = await getDeviceId();
+          const deviceId = getHardwareDeviceId();
           const result = await authAPI.checkDevice(deviceId);
           if (result.registered && result.token) {
             await saveSession(result.token, { ...cachedUser, ...result.user });
           }
           const fcmToken = await registerForPushNotifications();
           if (fcmToken) await authAPI.updateFcmToken(fcmToken);
-        } catch (_) {
-          // Ignore background refresh errors – user stays logged in
-        }
+        } catch (_) {}
         return;
       }
 
-      // ── No cached session – generate new device ID and show registration ──
-      setIsNewUser(true);
+      // ── No cached session – check if device is already registered ──────────
+      const deviceId = getHardwareDeviceId();
+      const result = await authAPI.checkDevice(deviceId);
+
+      if (result.registered && result.token) {
+        // Device already has an account – auto-login
+        const userData = result.user;
+        const localPic = await loadLocalProfilePic();
+        if (!userData.profilePicture && localPic) userData.profilePicture = localPic;
+        await saveSession(result.token, userData);
+        initSocket(result.token);
+        try {
+          const fcmToken = await registerForPushNotifications();
+          if (fcmToken) await authAPI.updateFcmToken(fcmToken);
+        } catch (_) {}
+      } else {
+        // New device – show registration
+        setIsNewUser(true);
+      }
     } catch {
-      // If everything fails but we have cached data, stay logged in
       const cachedToken = await SecureStore.getItemAsync('chatzz_token').catch(() => null);
       const cachedUserStr = await SecureStore.getItemAsync('chatzz_user').catch(() => null);
       if (cachedToken && cachedUserStr) {
@@ -72,20 +85,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const getDeviceId = async () => {
-    let deviceId = await SecureStore.getItemAsync('chatzz_device_id');
-    if (!deviceId) {
-      // Generate a unique ID per registration, not based on hardware
-      deviceId = `chatzz_${Device.osInternalBuildId || 'dev'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await SecureStore.setItemAsync('chatzz_device_id', deviceId);
-    }
-    return deviceId;
-  };
-
-  const generateNewDeviceId = async () => {
-    const deviceId = `chatzz_${Device.osInternalBuildId || 'dev'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await SecureStore.setItemAsync('chatzz_device_id', deviceId);
-    return deviceId;
+  // Hardware-based device ID – same for this device even after reinstall
+  const getHardwareDeviceId = () => {
+    return Device.osInternalBuildId || Device.deviceName || 'unknown_device';
   };
 
   const loadLocalProfilePic = async () => {
@@ -114,7 +116,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async ({ username, profilePictureUri }) => {
-    const deviceId = await generateNewDeviceId();
+    const deviceId = getHardwareDeviceId();
     const fcmToken = await registerForPushNotifications();
 
     const formData = new FormData();
@@ -153,7 +155,6 @@ export const AuthProvider = ({ children }) => {
       console.warn('Delete account error:', err.message);
     }
     await SecureStore.deleteItemAsync('chatzz_token');
-    await SecureStore.deleteItemAsync('chatzz_device_id');
     await SecureStore.deleteItemAsync('chatzz_user');
     try { await FileSystem.deleteAsync(PROFILE_PIC_PATH, { idempotent: true }); } catch (_) {}
     disconnectSocket();
@@ -164,7 +165,6 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     await SecureStore.deleteItemAsync('chatzz_token');
-    await SecureStore.deleteItemAsync('chatzz_device_id');
     await SecureStore.deleteItemAsync('chatzz_user');
     disconnectSocket();
     setUser(null);
