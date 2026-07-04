@@ -102,6 +102,7 @@ const sendMessage = async (req, res) => {
         token: receiver.fcmToken,
         title: req.user.username,
         body: preview,
+        category: 'message_reply',
         data: {
           type: 'new_message',
           chatId,
