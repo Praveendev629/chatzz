@@ -1,25 +1,33 @@
 /**
- * CallScreen.js - Voice and Video calls with WebRTC
- * Requires development build with react-native-webrtc
+ * CallScreen.js - Voice and Video calls
+ * Works without react-native-webrtc (shows message)
+ * For full WebRTC support, use development build
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Image, StatusBar, Alert,
+  View, Text, StyleSheet, TouchableOpacity, Image, StatusBar, Alert, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useAuth } from '../context/AuthContext';
 import { getSocket } from '../services/socket';
 
+// Try to load WebRTC, fallback to null if not available
 let RTCPeerConnection = null;
 let mediaDevices = null;
 let RTCView = null;
+let webrtcAvailable = false;
+
 try {
   const webrtc = require('react-native-webrtc');
   RTCPeerConnection = webrtc.RTCPeerConnection;
   mediaDevices = webrtc.mediaDevices;
   RTCView = webrtc.RTCView;
-} catch (_) {}
+  webrtcAvailable = true;
+} catch (_) {
+  // WebRTC not available - app will still work
+  console.log('WebRTC not available - calls will show placeholder');
+}
 
 // Better ICE configuration for stability
 const ICE_SERVERS = {
@@ -53,11 +61,15 @@ const CallScreen = ({ route, navigation }) => {
   const recordingRef = useRef(null);
 
   useEffect(() => {
-    if (!RTCPeerConnection) {
+    if (!webrtcAvailable || !RTCPeerConnection) {
+      // WebRTC not available - show message and go back
       Alert.alert(
-        'Call Feature',
-        'Calls require a development build with react-native-webrtc. Run: npx expo run:android / npx expo run:ios',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
+        'Calls Require Setup',
+        'Voice and video calls need a development build.\n\nTo enable calls:\n1. Run: npx expo prebuild\n2. Run: npx expo run:android\n\nOr continue using chat for now.',
+        [
+          { text: 'Go Back', onPress: () => navigation.goBack() },
+          { text: 'Stay Here', style: 'cancel' },
+        ]
       );
       return;
     }
