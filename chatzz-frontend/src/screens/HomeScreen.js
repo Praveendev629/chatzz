@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   RefreshControl, Alert, StatusBar, ActivityIndicator,
-  Dimensions, ScrollView, Animated, PanResponder, Image,
+  Dimensions, ScrollView, Animated, PanResponder, Image, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
