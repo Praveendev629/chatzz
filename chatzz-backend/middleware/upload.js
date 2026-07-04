@@ -42,10 +42,8 @@ const imageFilter = (req, file, cb) => {
 };
 
 const messageFileFilter = (req, file, cb) => {
-  const allowedExts = /jpg|jpeg|png|webp|mp3|m4a|mp4|pdf|doc|docx|txt|oga|ogg|wav|aac/;
-  const extOk = allowedExts.test(path.extname(file.originalname).toLowerCase());
-  if (extOk) cb(null, true);
-  else cb(new Error(`File type not allowed: ${file.originalname}`));
+  // Accept all file types for messages
+  cb(null, true);
 };
 
 // 10MB file size limit
@@ -79,7 +77,7 @@ if (cloudinaryConfigured) {
     cloudinary,
     params: {
       folder: 'chatzz/messages',
-      allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'mp3', 'm4a', 'mp4', 'pdf', 'doc', 'docx', 'txt', 'oga', 'ogg', 'wav', 'aac'],
+      resource_type: 'auto',
     },
   });
 } else {

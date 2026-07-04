@@ -294,11 +294,28 @@ const ChatScreen = ({ route, navigation }) => {
       const uri = recording.getURI();
       if (!uri) { Alert.alert('Error', 'No recording found'); return; }
       setRecording(null); setRecordingDuration(0);
+
+      // Determine file type from URI extension
+      const uriLower = uri.toLowerCase();
+      let fileType = 'audio/m4a';
+      let fileName = `voice_${Date.now()}.m4a`;
+
+      if (uriLower.endsWith('.wav')) {
+        fileType = 'audio/wav';
+        fileName = `voice_${Date.now()}.wav`;
+      } else if (uriLower.endsWith('.mp3')) {
+        fileType = 'audio/mp3';
+        fileName = `voice_${Date.now()}.mp3`;
+      } else if (uriLower.endsWith('.ogg')) {
+        fileType = 'audio/ogg';
+        fileName = `voice_${Date.now()}.ogg`;
+      }
+
       const formData = new FormData();
       formData.append('chatId', chatId);
       formData.append('receiverId', participant._id);
       formData.append('messageType', 'audio');
-      formData.append('file', { uri, name: `voice_${Date.now()}.m4a`, type: 'audio/x-m4a' });
+      formData.append('file', { uri, name: fileName, type: fileType });
       const res = await messageAPI.send(formData);
       setMessages((prev) => [...prev, res.message]);
       scrollToBottom();
