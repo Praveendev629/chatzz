@@ -29,16 +29,13 @@ try {
   console.log('WebRTC not available - calls will show placeholder');
 }
 
-// Better ICE configuration for stability
+// ICE configuration - minimal for faster connection
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
   ],
-  iceCandidatePoolSize: 10,
+  iceCandidatePoolSize: 0,
 };
 
 const CallScreen = ({ route, navigation }) => {
@@ -61,15 +58,11 @@ const CallScreen = ({ route, navigation }) => {
   const recordingRef = useRef(null);
 
   useEffect(() => {
-    if (!webrtcAvailable || !RTCPeerConnection) {
-      // WebRTC not available - show message and go back
+    if (!RTCPeerConnection) {
       Alert.alert(
-        'Calls Require Setup',
-        'Voice and video calls need a development build.\n\nTo enable calls:\n1. Run: npx expo prebuild\n2. Run: npx expo run:android\n\nOr continue using chat for now.',
-        [
-          { text: 'Go Back', onPress: () => navigation.goBack() },
-          { text: 'Stay Here', style: 'cancel' },
-        ]
+        'Call Feature',
+        'Calls require a development build.\n\nTo enable calls:\n1. Run: npx expo prebuild\n2. Run: npx expo run:android',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
       return;
     }
@@ -122,7 +115,9 @@ const CallScreen = ({ route, navigation }) => {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 44100,
+          channelCount: 1,
+          sampleRate: 16000,
+          sampleSize: 16,
         },
         video: callType === 'video' ? {
           width: { ideal: 640 },
@@ -206,7 +201,9 @@ const CallScreen = ({ route, navigation }) => {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 44100,
+          channelCount: 1,
+          sampleRate: 16000,
+          sampleSize: 16,
         },
         video: callType === 'video' ? {
           width: { ideal: 640 },
