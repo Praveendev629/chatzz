@@ -46,7 +46,19 @@ const socketHandler = (io) => {
     // ─── Send Message ──────────────────────────────────────────────────────────
     socket.on('send_message', async (data) => {
       try {
-        const { chatId, receiverId, messageType, content, fileUrl, fileName, tempId } = data;
+        const { chatId, receiverId, messageType, content, fileUrl, fileName, tempId, replyTo } = data;
+
+        let replyToContent = null;
+        let replyToSender = null;
+
+        // Handle reply-to message
+        if (replyTo) {
+          const repliedMessage = await Message.findById(replyTo).populate('sender', 'username');
+          if (repliedMessage) {
+            replyToContent = repliedMessage.content || repliedMessage.fileName || (repliedMessage.messageType === 'image' ? '📷 Image' : repliedMessage.messageType === 'audio' ? '🎤 Voice message' : '📎 Document');
+            replyToSender = repliedMessage.sender?.username || 'Unknown';
+          }
+        }
 
         const message = await Message.create({
           chatId,
@@ -56,6 +68,9 @@ const socketHandler = (io) => {
           content: content || '',
           fileUrl: fileUrl || null,
           fileName: fileName || null,
+          replyTo: replyTo || null,
+          replyToContent,
+          replyToSender,
           status: 'sent',
         });
 

@@ -1,104 +1,118 @@
 const Status = require('../models/Status');
-const { sendPushNotification } = require('../config/firebase');
+const User = require('../models/User');
 
-// @desc    Create a new status
+// @desc    Create status
 // @route   POST /api/status
 // @access  Private
 const createStatus = async (req, res) => {
   try {
-    const { content, mediaType, backgroundColor } = req.body;
-    let mediaUrl = null;
+    const { mediaType, content, backgroundColor } = req.body;
 
+    let mediaUrl = null;
     if (req.file) {
       mediaUrl = req.file.path;
     }
 
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
+    if (mediaType === 'text' && !content) {
+      return res.status(400).json({ success: false, message: 'Content is required for text status' });
+    }
+
+    if ((mediaType === 'image' || mediaType === 'video') && !mediaUrl) {
+      return res.status(400).json({ success: false, message: 'Media file is required' });
+    }
+
+    // Status expires after 24 hours
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const status = await Status.create({
       user: req.user._id,
-      content: content || '',
+      mediaType,
       mediaUrl,
-      mediaType: req.file ? (req.file.mimetype?.startsWith('video') ? 'video' : 'image') : (mediaType || 'text'),
-      backgroundColor: backgroundColor || '#1a1a2e',
+      content: content || '',
+      backgroundColor: backgroundColor || '#E53935',
       expiresAt,
     });
 
     const populated = await Status.findById(status._id).populate('user', '_id username profilePicture');
 
+    // Notify followers via socket
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('new_status', { userId: req.user._id, username: req.user.username });
+    }
+
     res.status(201).json({ success: true, status: populated });
   } catch (error) {
+    console.error('Create status error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Get all active statuses from users the current user can see
+// @desc    Get all active statuses
 // @route   GET /api/status
 // @access  Private
 const getStatuses = async (req, res) => {
   try {
-    const User = require('../models/User');
-    const currentUser = await User.findById(req.user._id);
-
-    // Get users who have accepted chat requests or are contacts
-    const chatRequestUsers = currentUser.chatRequests
-      .filter((r) => r.status === 'accepted')
-      .map((r) => r.from);
-
-    const Chat = require('../models/Chat');
-    const chats = await Chat.find({ participants: req.user._id });
-    const chatUsers = chats.flatMap((c) =>
-      c.participants.filter((p) => p.toString() !== req.user._id.toString())
-    );
-
-    // Combine and deduplicate
-    const visibleUserIds = [...new Set([...chatRequestUsers.map(String), ...chatUsers.map(String)])];
-
-    // Also include own statuses
-    visibleUserIds.push(req.user._id.toString());
-
     const statuses = await Status.find({
-      user: { $in: visibleUserIds },
       expiresAt: { $gt: new Date() },
+      user: { $ne: req.user._id },
     })
-      .sort({ createdAt: -1 })
-      .populate('user', '_id username profilePicture');
+      .populate('user', '_id username profilePicture')
+      .sort({ createdAt: -1 });
 
-    res.status(200).json({ success: true, statuses });
+    // Group by user
+    const groupedByUser = {};
+    statuses.forEach((status) => {
+      const userId = status.user._id.toString();
+      if (!groupedByUser[userId]) {
+        groupedByUser[userId] = {
+          user: status.user,
+          statuses: [],
+          hasUnviewed: false,
+        };
+      }
+      groupedByUser[userId].statuses.push(status);
+
+      // Check if current user has viewed this status
+      const viewed = status.views.some(
+        (v) => v.user.toString() === req.user._id.toString()
+      );
+      if (!viewed) {
+        groupedByUser[userId].hasUnviewed = true;
+      }
+    });
+
+    // Get user's own statuses
+    const ownStatuses = await Status.find({
+      user: req.user._id,
+      expiresAt: { $gt: new Date() },
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      statuses: Object.values(groupedByUser),
+      ownStatuses,
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Get statuses from a specific user
-// @route   GET /api/status/user/:userId
-// @access  Private
-const getUserStatuses = async (req, res) => {
-  try {
-    const statuses = await Status.find({
-      user: req.params.userId,
-      expiresAt: { $gt: new Date() },
-    })
-      .sort({ createdAt: -1 })
-      .populate('user', '_id username profilePicture');
-
-    res.status(200).json({ success: true, statuses });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// @desc    Mark status as viewed
-// @route   PUT /api/status/:id/view
+// @desc    View status (mark as viewed)
+// @route   POST /api/status/:id/view
 // @access  Private
 const viewStatus = async (req, res) => {
   try {
     const status = await Status.findById(req.params.id);
     if (!status) return res.status(404).json({ success: false, message: 'Status not found' });
 
-    if (!status.viewedBy.includes(req.user._id)) {
-      status.viewedBy.push(req.user._id);
+    // Check if already viewed
+    const alreadyViewed = status.views.some(
+      (v) => v.user.toString() === req.user._id.toString()
+    );
+
+    if (!alreadyViewed) {
+      status.views.push({ user: req.user._id });
       await status.save();
     }
 
@@ -108,7 +122,28 @@ const viewStatus = async (req, res) => {
   }
 };
 
-// @desc    Delete own status
+// @desc    Get status viewers
+// @route   GET /api/status/:id/viewers
+// @access  Private
+const getStatusViewers = async (req, res) => {
+  try {
+    const status = await Status.findById(req.params.id)
+      .populate('views.user', '_id username profilePicture');
+
+    if (!status) return res.status(404).json({ success: false, message: 'Status not found' });
+
+    // Only the status owner can see viewers
+    if (status.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    res.status(200).json({ success: true, viewers: status.views });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Delete status
 // @route   DELETE /api/status/:id
 // @access  Private
 const deleteStatus = async (req, res) => {
@@ -127,4 +162,4 @@ const deleteStatus = async (req, res) => {
   }
 };
 
-module.exports = { createStatus, getStatuses, getUserStatuses, viewStatus, deleteStatus };
+module.exports = { createStatus, getStatuses, viewStatus, getStatusViewers, deleteStatus };

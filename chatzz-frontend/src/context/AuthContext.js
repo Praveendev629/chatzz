@@ -53,23 +53,8 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      // ── No cached session – check device with backend ──────────────────────
-      const deviceId = await getDeviceId();
-      const result = await authAPI.checkDevice(deviceId);
-
-      if (result.registered && result.token) {
-        const userData = result.user;
-        const localPic = await loadLocalProfilePic();
-        if (!userData.profilePicture && localPic) userData.profilePicture = localPic;
-        await saveSession(result.token, userData);
-        initSocket(result.token);
-        try {
-          const fcmToken = await registerForPushNotifications();
-          if (fcmToken) await authAPI.updateFcmToken(fcmToken);
-        } catch (_) {}
-      } else {
-        setIsNewUser(true);
-      }
+      // ── No cached session – generate new device ID and show registration ──
+      setIsNewUser(true);
     } catch {
       // If everything fails but we have cached data, stay logged in
       const cachedToken = await SecureStore.getItemAsync('chatzz_token').catch(() => null);
@@ -90,12 +75,16 @@ export const AuthProvider = ({ children }) => {
   const getDeviceId = async () => {
     let deviceId = await SecureStore.getItemAsync('chatzz_device_id');
     if (!deviceId) {
-      deviceId =
-        Device.osInternalBuildId ||
-        Device.deviceName ||
-        `device_${Date.now()}`;
+      // Generate a unique ID per registration, not based on hardware
+      deviceId = `chatzz_${Device.osInternalBuildId || 'dev'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await SecureStore.setItemAsync('chatzz_device_id', deviceId);
     }
+    return deviceId;
+  };
+
+  const generateNewDeviceId = async () => {
+    const deviceId = `chatzz_${Device.osInternalBuildId || 'dev'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await SecureStore.setItemAsync('chatzz_device_id', deviceId);
     return deviceId;
   };
 
@@ -125,7 +114,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async ({ username, profilePictureUri }) => {
-    const deviceId = await getDeviceId();
+    const deviceId = await generateNewDeviceId();
     const fcmToken = await registerForPushNotifications();
 
     const formData = new FormData();

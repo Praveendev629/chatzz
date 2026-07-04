@@ -38,6 +38,19 @@ const messageSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message',
+      default: null,
+    },
+    replyToContent: {
+      type: String,
+      default: null,
+    },
+    replyToSender: {
+      type: String,
+      default: null,
+    },
     status: {
       type: String,
       enum: ['sent', 'delivered', 'seen'],

@@ -29,8 +29,7 @@ ios/
 .env.test.local
 .env.production.local
 
-# Firebase
-google-services.json
+
 
 # IDE
 .vscode/

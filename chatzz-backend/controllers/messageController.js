@@ -31,16 +31,27 @@ const getMessages = async (req, res) => {
 // @access  Private
 const sendMessage = async (req, res) => {
   try {
-    const { chatId, receiverId, messageType = 'text', content } = req.body;
+    const { chatId, receiverId, messageType = 'text', content, replyTo } = req.body;
 
     let fileUrl = null;
     let fileName = null;
     let fileSize = null;
+    let replyToContent = null;
+    let replyToSender = null;
 
     if (req.file) {
       fileUrl = req.file.path;
       fileName = req.file.originalname;
       fileSize = req.file.size;
+    }
+
+    // Handle reply-to message
+    if (replyTo) {
+      const repliedMessage = await Message.findById(replyTo).populate('sender', 'username');
+      if (repliedMessage) {
+        replyToContent = repliedMessage.content || repliedMessage.fileName || (repliedMessage.messageType === 'image' ? '📷 Image' : repliedMessage.messageType === 'audio' ? '🎤 Voice message' : '📎 Document');
+        replyToSender = repliedMessage.sender?.username || 'Unknown';
+      }
     }
 
     // Check if receiver blocked sender
@@ -58,6 +69,9 @@ const sendMessage = async (req, res) => {
       fileUrl,
       fileName,
       fileSize,
+      replyTo: replyTo || null,
+      replyToContent,
+      replyToSender,
       status: 'sent',
     });
 

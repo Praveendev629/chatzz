@@ -7,34 +7,33 @@ const statusSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    content: {
+    mediaType: {
       type: String,
-      default: '',
+      enum: ['image', 'video', 'text'],
+      required: true,
     },
     mediaUrl: {
       type: String,
       default: null,
     },
-    mediaType: {
+    content: {
       type: String,
-      enum: ['text', 'image', 'video'],
-      default: 'text',
+      default: '',
     },
     backgroundColor: {
       type: String,
-      default: '#1a1a2e',
+      default: '#E53935',
     },
+    views: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        viewedAt: { type: Date, default: Date.now },
+      },
+    ],
     expiresAt: {
       type: Date,
       required: true,
-      index: { expires: 0 },
     },
-    viewedBy: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-      },
-    ],
   },
   { timestamps: true }
 );

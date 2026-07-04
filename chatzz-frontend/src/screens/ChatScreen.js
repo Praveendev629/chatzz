@@ -38,6 +38,7 @@ const ChatScreen = ({ route, navigation }) => {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
 
   const flatListRef = useRef(null);
   const typingTimeout = useRef(null);
@@ -141,6 +142,14 @@ const ChatScreen = ({ route, navigation }) => {
     }, 1500);
   };
 
+  const handleSwipeReply = (message) => {
+    setReplyTo(message);
+  };
+
+  const cancelReply = () => {
+    setReplyTo(null);
+  };
+
   const sendTextMessage = () => {
     if (!text.trim()) return;
     const tempId = `temp_${Date.now()}`;
@@ -150,13 +159,24 @@ const ChatScreen = ({ route, navigation }) => {
       receiver: participant._id,
       messageType: 'text',
       content: text.trim(),
+      replyTo: replyTo?._id || null,
+      replyToContent: replyTo?.content || replyTo?.fileName || null,
+      replyToSender: replyTo?.sender?.username || null,
       status: 'sent',
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimisticMsg]);
     scrollToBottom();
-    emitSendMessage({ chatId, receiverId: participant._id, messageType: 'text', content: text.trim(), tempId });
+    emitSendMessage({
+      chatId,
+      receiverId: participant._id,
+      messageType: 'text',
+      content: text.trim(),
+      tempId,
+      replyTo: replyTo?._id || null,
+    });
     setText('');
+    setReplyTo(null);
     emitStopTyping({ chatId, receiverId: participant._id });
   };
 
@@ -236,18 +256,23 @@ const ChatScreen = ({ route, navigation }) => {
     try {
       clearInterval(durationInterval.current);
       setIsRecording(false);
+      if (!recording) return;
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
+      if (!uri) { Alert.alert('Error', 'No recording found'); return; }
       setRecording(null); setRecordingDuration(0);
       const formData = new FormData();
       formData.append('chatId', chatId);
       formData.append('receiverId', participant._id);
       formData.append('messageType', 'audio');
-      formData.append('file', { uri, name: 'voice_message.m4a', type: 'audio/mp4' });
+      formData.append('file', { uri, name: `voice_${Date.now()}.m4a`, type: 'audio/x-m4a' });
       const res = await messageAPI.send(formData);
       setMessages((prev) => [...prev, res.message]);
       scrollToBottom();
-    } catch (err) { Alert.alert('Error', 'Failed to send voice message'); }
+    } catch (err) {
+      console.error('Voice send error:', err);
+      Alert.alert('Error', 'Failed to send voice message: ' + err.message);
+    }
   };
 
   const cancelRecording = async () => {
@@ -364,6 +389,7 @@ const ChatScreen = ({ route, navigation }) => {
                 isMine={item.sender?._id === user._id}
                 onLongPress={() => handleLongPressMessage(item)}
                 onImagePress={(url) => setImagePreview(url)}
+                onSwipeReply={handleSwipeReply}
                 colors={C}
               />
             )}
@@ -373,6 +399,23 @@ const ChatScreen = ({ route, navigation }) => {
           />
         )}
       </KeyboardAvoidingView>
+
+      {/* Reply Preview */}
+      {replyTo && (
+        <View style={[styles.replyPreviewBar, { backgroundColor: C.surface, borderTopColor: C.border }]}>
+          <View style={[styles.replyPreviewContent, { borderLeftColor: C.primary }]}>
+            <Text style={[styles.replyPreviewSender, { color: C.primary }]} numberOfLines={1}>
+              {replyTo.sender?.username || 'Unknown'}
+            </Text>
+            <Text style={[styles.replyPreviewText, { color: C.textSecondary }]} numberOfLines={1}>
+              {replyTo.content || replyTo.fileName || (replyTo.messageType === 'image' ? '📷 Image' : replyTo.messageType === 'audio' ? '🎤 Voice' : '📎 File')}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={cancelReply} style={styles.replyCancelBtn}>
+            <Ionicons name="close" size={20} color={C.textMuted} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Input Bar */}
       <View style={[styles.inputBar, { backgroundColor: C.surface, borderTopColor: C.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
@@ -476,6 +519,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingTop: 8,
     borderTopWidth: 1,
   },
+  replyPreviewBar: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderTopWidth: 1,
+  },
+  replyPreviewContent: {
+    flex: 1,
+    borderLeftWidth: 3,
+    paddingLeft: 8,
+    paddingVertical: 4,
+  },
+  replyPreviewSender: { fontSize: 13, fontWeight: '700' },
+  replyPreviewText: { fontSize: 12, marginTop: 2 },
+  replyCancelBtn: { padding: 8 },
   attachBtn: { padding: 8, marginBottom: 2 },
   textInput: {
     flex: 1, borderRadius: 22,

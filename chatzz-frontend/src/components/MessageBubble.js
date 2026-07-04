@@ -1,16 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity,
-  TouchableWithoutFeedback, Linking, Alert,
+  TouchableWithoutFeedback, Linking, Alert, Animated, PanResponder,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { Colors, BorderRadius, Spacing } from '../theme';
 
-const MessageBubble = ({ message, isMine, onLongPress, onImagePress, colors }) => {
+const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeReply, colors }) => {
   const [playing, setPlaying] = useState(false);
   const [sound, setSound] = useState(null);
   const C = colors || Colors;
+  const translateX = useRef(new Animated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 10;
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        if (gestureState.dx > 0 && gestureState.dx < 100) {
+          translateX.setValue(gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 60) {
+          // Swipe right - trigger reply
+          if (onSwipeReply) onSwipeReply(message);
+        }
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+      },
+    })
+  ).current;
 
   if (message.deletedForEveryone) {
     return (
@@ -52,6 +73,20 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, colors }) =
     } catch {
       Alert.alert('Error', 'Could not open document');
     }
+  };
+
+  const renderReplyPreview = () => {
+    if (!message.replyTo) return null;
+    return (
+      <View style={[styles.replyPreview, { backgroundColor: isMine ? 'rgba(255,255,255,0.15)' : `${C.primary}15`, borderLeftColor: isMine ? 'rgba(255,255,255,0.5)' : C.primary }]}>
+        <Text style={[styles.replySender, { color: isMine ? 'rgba(255,255,255,0.9)' : C.primary }]} numberOfLines={1}>
+          {message.replyToSender || 'Unknown'}
+        </Text>
+        <Text style={[styles.replyContent, { color: isMine ? 'rgba(255,255,255,0.7)' : C.textSecondary }]} numberOfLines={1}>
+          {message.replyToContent || 'Message'}
+        </Text>
+      </View>
+    );
   };
 
   const renderContent = () => {
@@ -144,31 +179,43 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, colors }) =
   };
 
   return (
-    <TouchableWithoutFeedback onLongPress={onLongPress}>
-      <View style={[styles.wrapper, isMine ? styles.right : styles.left]}>
-        <View style={[
-          styles.bubble,
-          isMine
-            ? [styles.bubbleMine, { backgroundColor: C.primary }]
-            : [styles.bubbleTheirs, { backgroundColor: C.card }],
-        ]}>
-          {renderContent()}
-          <View style={styles.meta}>
-            <Text style={[styles.time, isMine && styles.timeMine]}>
-              {formatTime(message.createdAt)}
-            </Text>
-            {getStatusIcon()}
+    <View style={[styles.wrapper, isMine ? styles.right : styles.left]}>
+      {/* Swipe reply indicator */}
+      <Animated.View style={[styles.replyIndicator, { opacity: translateX.interpolate({ inputRange: [0, 60], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
+        <Ionicons name="arrow-back" size={20} color={C.primary} />
+      </Animated.View>
+      <Animated.View
+        style={[styles.animatedBubble, { transform: [{ translateX }] }]}
+        {...panResponder.panHandlers}
+      >
+        <TouchableWithoutFeedback onLongPress={onLongPress}>
+          <View style={[
+            styles.bubble,
+            isMine
+              ? [styles.bubbleMine, { backgroundColor: C.primary }]
+              : [styles.bubbleTheirs, { backgroundColor: C.card }],
+          ]}>
+            {renderReplyPreview()}
+            {renderContent()}
+            <View style={styles.meta}>
+              <Text style={[styles.time, isMine && styles.timeMine]}>
+                {formatTime(message.createdAt)}
+              </Text>
+              {getStatusIcon()}
+            </View>
           </View>
-        </View>
-      </View>
-    </TouchableWithoutFeedback>
+        </TouchableWithoutFeedback>
+      </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  wrapper: { marginVertical: 2, marginHorizontal: Spacing.sm, flexDirection: 'row' },
+  wrapper: { marginVertical: 2, marginHorizontal: Spacing.sm, flexDirection: 'row', alignItems: 'center' },
   left: { justifyContent: 'flex-start' },
   right: { justifyContent: 'flex-end' },
+  replyIndicator: { position: 'absolute', left: 0, zIndex: 1 },
+  animatedBubble: { flex: 1 },
   bubble: { maxWidth: '78%', padding: 10, borderRadius: 18, minWidth: 80 },
   bubbleMine: { borderBottomRightRadius: 4 },
   bubbleTheirs: { borderBottomLeftRadius: 4 },
@@ -178,6 +225,15 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1,
   },
   deletedText: { fontSize: 13, fontStyle: 'italic' },
+  replyPreview: {
+    borderLeftWidth: 3,
+    paddingLeft: 8,
+    marginBottom: 6,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  replySender: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
+  replyContent: { fontSize: 12 },
   messageText: { fontSize: 15, color: Colors.text, lineHeight: 20 },
   messageTextMine: { color: '#fff' },
   imageContent: { width: 210, height: 210, borderRadius: 14, marginBottom: 4 },

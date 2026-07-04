@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   RefreshControl, Alert, StatusBar, ActivityIndicator,
-  Dimensions, ScrollView, Animated, PanResponder, Image, TextInput,
+  Dimensions, ScrollView, Animated, PanResponder, Image, TextInput, Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
-import { chatAPI, userAPI } from '../services/api';
+import { chatAPI, userAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useTheme } from '../context/ThemeContext';
@@ -26,9 +27,17 @@ const HomeScreen = ({ navigation }) => {
   const [chats, setChats] = useState([]);
   const [requests, setRequests] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [statuses, setStatuses] = useState([]);
+  const [ownStatuses, setOwnStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [showStatusViewer, setShowStatusViewer] = useState(false);
+  const [viewingStatuses, setViewingStatuses] = useState([]);
+  const [viewingStatusIndex, setViewingStatusIndex] = useState(0);
+  const [showCreateStatus, setShowCreateStatus] = useState(false);
+  const [statusText, setStatusText] = useState('');
+  const [statusBgColor, setStatusBgColor] = useState('#E53935');
   const [searchQuery, setSearchQuery] = useState('');
 
   const scrollRef = useRef(null);
@@ -39,6 +48,7 @@ const HomeScreen = ({ navigation }) => {
       fetchChats();
       fetchRequests();
       fetchAllUsers();
+      fetchStatuses();
     }, [])
   );
 
@@ -117,6 +127,79 @@ const HomeScreen = ({ navigation }) => {
     try {
       const result = await userAPI.getAll('');
       setAllUsers(result.users || []);
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchStatuses = async () => {
+    try {
+      const result = await statusAPI.getAll();
+      setStatuses(result.statuses || []);
+      setOwnStatuses(result.ownStatuses || []);
+    } catch (err) { console.error(err); }
+  };
+
+  const createTextStatus = async () => {
+    if (!statusText.trim()) return;
+    try {
+      const formData = new FormData();
+      formData.append('mediaType', 'text');
+      formData.append('content', statusText);
+      formData.append('backgroundColor', statusBgColor);
+      await statusAPI.create(formData);
+      setShowCreateStatus(false);
+      setStatusText('');
+      fetchStatuses();
+    } catch (err) { Alert.alert('Error', 'Failed to create status'); }
+  };
+
+  const createImageStatus = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Permission needed', 'Allow photo access'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      try {
+        const file = result.assets[0];
+        const formData = new FormData();
+        formData.append('mediaType', 'image');
+        formData.append('media', { uri: file.uri, name: 'status.jpg', type: 'image/jpeg' });
+        await statusAPI.create(formData);
+        fetchStatuses();
+      } catch (err) { Alert.alert('Error', 'Failed to create status'); }
+    }
+  };
+
+  const createVideoStatus = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Permission needed', 'Allow video access'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      quality: 0.8,
+      videoMaxDuration: 30,
+    });
+    if (!result.canceled) {
+      try {
+        const file = result.assets[0];
+        const formData = new FormData();
+        formData.append('mediaType', 'video');
+        formData.append('media', { uri: file.uri, name: 'status.mp4', type: 'video/mp4' });
+        await statusAPI.create(formData);
+        fetchStatuses();
+      } catch (err) { Alert.alert('Error', 'Failed to create status'); }
+    }
+  };
+
+  const openStatusViewer = (userStatuses, index = 0) => {
+    setViewingStatuses(userStatuses);
+    setViewingStatusIndex(index);
+    setShowStatusViewer(true);
+  };
+
+  const viewStatusItem = async (status) => {
+    try {
+      await statusAPI.view(status._id);
     } catch (err) { console.error(err); }
   };
 
@@ -365,18 +448,171 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* Tab 2: Status */}
-        <View style={[{ width }, styles.emptyContainer]}>
-          <Ionicons name="ellipse-outline" size={80} color={C.border} />
-          <Text style={[styles.emptyTitle, { color: C.textMuted }]}>Status</Text>
-          <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>Share what's happening</Text>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Status')}
-            style={[styles.startChatBtn, { backgroundColor: C.primary }]}
-          >
-            <Text style={styles.startChatBtnText}>View Status</Text>
-          </TouchableOpacity>
+        <View style={{ width }}>
+          {/* My Status */}
+          <View style={[styles.myStatusSection, { borderBottomColor: C.border }]}>
+            <TouchableOpacity style={styles.myStatusRow} onPress={() => setShowCreateStatus(true)}>
+              <View style={[styles.myStatusAvatar, { backgroundColor: C.primary }]}>
+                {user.profilePicture ? (
+                  <Image source={{ uri: user.profilePicture }} style={styles.myStatusAvatarImg} />
+                ) : (
+                  <Ionicons name="person" size={24} color="#fff" />
+                )}
+                <View style={[styles.addStatusBadge, { backgroundColor: C.primary }]}>
+                  <Ionicons name="add" size={14} color="#fff" />
+                </View>
+              </View>
+              <View style={styles.myStatusInfo}>
+                <Text style={[styles.myStatusTitle, { color: C.text }]}>My Status</Text>
+                <Text style={[styles.myStatusSubtitle, { color: C.textMuted }]}>
+                  {ownStatuses.length > 0 ? `${ownStatuses.length} status update${ownStatuses.length > 1 ? 's' : ''}` : 'Tap to add status'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            {ownStatuses.length > 0 && (
+              <TouchableOpacity
+                style={[styles.viewMyStatusBtn, { backgroundColor: `${C.primary}20` }]}
+                onPress={() => openStatusViewer([{ statuses: ownStatuses }], 0)}
+              >
+                <Text style={[styles.viewMyStatusText, { color: C.primary }]}>View</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Other Users' Statuses */}
+          <FlatList
+            data={statuses}
+            keyExtractor={(item) => item.user._id}
+            scrollEnabled={false}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[styles.statusRow, { borderBottomColor: C.border }]}
+                onPress={() => openStatusViewer(item.statuses, 0)}
+              >
+                <View style={[
+                  styles.statusAvatar,
+                  item.hasUnviewed && { borderColor: '#FFD600', borderWidth: 3 }
+                ]}>
+                  {item.user.profilePicture ? (
+                    <Image source={{ uri: item.user.profilePicture }} style={styles.statusAvatarImg} />
+                  ) : (
+                    <View style={[styles.statusAvatarPlaceholder, { backgroundColor: C.primary }]}>
+                      <Ionicons name="person" size={24} color="#fff" />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.statusInfo}>
+                  <Text style={[styles.statusName, { color: C.text }]}>{item.user.username}</Text>
+                  <Text style={[styles.statusTime, { color: C.textMuted }]}>
+                    {item.statuses.length} update{item.statuses.length > 1 ? 's' : ''}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Ionicons name="ellipse-outline" size={80} color={C.border} />
+                <Text style={[styles.emptyTitle, { color: C.textMuted }]}>No statuses yet</Text>
+                <Text style={[styles.emptySubtitle, { color: C.textMuted }]}>Be the first to share a status</Text>
+              </View>
+            }
+          />
         </View>
       </ScrollView>
+
+      {/* Status Viewer Modal */}
+      <Modal visible={showStatusViewer} transparent animationType="fade">
+        <View style={styles.statusViewerOverlay}>
+          <View style={styles.statusViewerHeader}>
+            <Text style={styles.statusViewerTitle}>
+              {viewingStatuses[viewingStatusIndex]?.user?.username || 'Status'}
+            </Text>
+            <TouchableOpacity onPress={() => setShowStatusViewer(false)}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.statusViewerContent}>
+            {viewingStatuses[viewingStatusIndex]?.mediaType === 'text' ? (
+              <View style={[styles.textStatusContent, { backgroundColor: viewingStatuses[viewingStatusIndex]?.backgroundColor || '#E53935' }]}>
+                <Text style={styles.textStatus}>{viewingStatuses[viewingStatusIndex]?.content}</Text>
+              </View>
+            ) : viewingStatuses[viewingStatusIndex]?.mediaType === 'image' ? (
+              <Image
+                source={{ uri: viewingStatuses[viewingStatusIndex]?.mediaUrl }}
+                style={styles.statusImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <Text style={styles.statusMediaType}>Video</Text>
+            )}
+          </View>
+          <View style={styles.statusViewerNav}>
+            <TouchableOpacity
+              onPress={() => {
+                if (viewingStatusIndex > 0) {
+                  setViewingStatusIndex(viewingStatusIndex - 1);
+                  viewStatusItem(viewingStatuses[viewingStatusIndex - 1]);
+                }
+              }}
+              disabled={viewingStatusIndex === 0}
+            >
+              <Ionicons name="chevron-back" size={32} color={viewingStatusIndex === 0 ? '#666' : '#fff'} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                if (viewingStatusIndex < viewingStatuses.length - 1) {
+                  setViewingStatusIndex(viewingStatusIndex + 1);
+                  viewStatusItem(viewingStatuses[viewingStatusIndex + 1]);
+                } else {
+                  setShowStatusViewer(false);
+                }
+              }}
+            >
+              <Ionicons name="chevron-forward" size={32} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Create Status Modal */}
+      <Modal visible={showCreateStatus} transparent animationType="slide">
+        <View style={styles.createStatusOverlay}>
+          <View style={[styles.createStatusSheet, { backgroundColor: C.surface }]}>
+            <Text style={[styles.createStatusTitle, { color: C.text }]}>Create Status</Text>
+            <View style={[styles.colorPicker, { backgroundColor: C.card }]}>
+              {['#E53935', '#1565C0', '#2E7D32', '#7B1FA2', '#FF9800', '#000000'].map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[styles.colorOption, { backgroundColor: color, borderColor: statusBgColor === color ? '#fff' : 'transparent' }]}
+                  onPress={() => setStatusBgColor(color)}
+                />
+              ))}
+            </View>
+            <TextInput
+              style={[styles.statusInput, { backgroundColor: C.inputBg, color: C.text, borderColor: C.border }]}
+              placeholder="What's on your mind?"
+              placeholderTextColor={C.textMuted}
+              value={statusText}
+              onChangeText={setStatusText}
+              multiline
+            />
+            <View style={styles.createStatusActions}>
+              <TouchableOpacity style={[styles.createStatusBtn, { backgroundColor: C.primary }]} onPress={createTextStatus}>
+                <Text style={styles.createStatusBtnText}>Post Text</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.createStatusBtn, { backgroundColor: '#9C27B0' }]} onPress={createImageStatus}>
+                <Ionicons name="image" size={20} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.createStatusBtn, { backgroundColor: '#FF9800' }]} onPress={createVideoStatus}>
+                <Ionicons name="videocam" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={() => setShowCreateStatus(false)}>
+              <Text style={[styles.cancelCreate, { color: C.textMuted }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -443,6 +679,70 @@ const styles = StyleSheet.create({
   },
   requestBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   connectBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  // Status styles
+  myStatusSection: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Spacing.lg, paddingVertical: 12, borderBottomWidth: 1,
+  },
+  myStatusRow: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  myStatusAvatar: { width: 56, height: 56, borderRadius: 28, overflow: 'hidden', position: 'relative' },
+  myStatusAvatarImg: { width: 56, height: 56, borderRadius: 28 },
+  addStatusBadge: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 20, height: 20, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#000',
+  },
+  myStatusInfo: { flex: 1, marginLeft: 12 },
+  myStatusTitle: { fontSize: 16, fontWeight: '600' },
+  myStatusSubtitle: { fontSize: 13, marginTop: 2 },
+  viewMyStatusBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16 },
+  viewMyStatusText: { fontSize: 13, fontWeight: '600' },
+  statusRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Spacing.lg, paddingVertical: 12, borderBottomWidth: 1,
+  },
+  statusAvatar: { width: 56, height: 56, borderRadius: 28, padding: 3 },
+  statusAvatarImg: { width: 50, height: 50, borderRadius: 25 },
+  statusAvatarPlaceholder: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
+  statusInfo: { flex: 1, marginLeft: 12 },
+  statusName: { fontSize: 16, fontWeight: '600' },
+  statusTime: { fontSize: 13, marginTop: 2 },
+  // Status Viewer Modal
+  statusViewerOverlay: { flex: 1, backgroundColor: '#000' },
+  statusViewerHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingTop: 50, paddingBottom: 10,
+  },
+  statusViewerTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  statusViewerContent: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  textStatusContent: {
+    width: '90%', height: '60%', borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center', padding: 24,
+  },
+  textStatus: { color: '#fff', fontSize: 24, fontWeight: '700', textAlign: 'center' },
+  statusImage: { width: '100%', height: '100%' },
+  statusMediaType: { color: '#fff', fontSize: 18 },
+  statusViewerNav: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingHorizontal: 32, paddingBottom: 40,
+  },
+  // Create Status Modal
+  createStatusOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  createStatusSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  createStatusTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 16 },
+  colorPicker: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 16, padding: 12, borderRadius: 12 },
+  colorOption: { width: 36, height: 36, borderRadius: 18, borderWidth: 3 },
+  statusInput: {
+    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12,
+    fontSize: 16, marginBottom: 16, borderWidth: 1, minHeight: 80,
+  },
+  createStatusActions: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  createStatusBtn: {
+    flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center',
+  },
+  createStatusBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  cancelCreate: { textAlign: 'center', paddingVertical: 12, fontSize: 15 },
 });
 
 export default HomeScreen;
