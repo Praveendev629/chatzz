@@ -2,13 +2,18 @@ import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity,
   TouchableWithoutFeedback, Linking, Alert, Animated, PanResponder,
+  Dimensions, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { Colors, BorderRadius, Spacing } from '../theme';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const BUBBLE_MAX_WIDTH = SCREEN_WIDTH * 0.75;
+
 const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeReply, colors }) => {
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [sound, setSound] = useState(null);
   const C = colors || Colors;
   const translateX = useRef(new Animated.Value(0)).current;
@@ -51,14 +56,26 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
       return;
     }
     try {
-      const { sound: s } = await Audio.Sound.createAsync({ uri: message.fileUrl });
+      setLoading(true);
+      const { sound: s } = await Audio.Sound.createAsync(
+        { uri: message.fileUrl },
+        { shouldPlay: true }
+      );
       setSound(s);
       setPlaying(true);
-      await s.playAsync();
+      setLoading(false);
       s.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) { setPlaying(false); setSound(null); }
+        if (status.isLoaded && status.isBuffering) {
+          setLoading(true);
+        } else if (status.isLoaded && !status.isBuffering) {
+          setLoading(false);
+        }
+        if (status.didJustFinish) { setPlaying(false); setSound(null); setLoading(false); }
       });
-    } catch { Alert.alert('Error', 'Could not play audio'); }
+    } catch {
+      setLoading(false);
+      Alert.alert('Error', 'Could not play audio');
+    }
   };
 
   const openDocument = async () => {
@@ -104,12 +121,16 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
 
       case 'audio':
         return (
-          <TouchableOpacity style={styles.audioContent} onPress={playAudio}>
-            <Ionicons
-              name={playing ? 'pause-circle' : 'play-circle'}
-              size={40}
-              color={isMine ? '#fff' : C.primary}
-            />
+          <TouchableOpacity style={styles.audioContent} onPress={playAudio} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator size={36} color={isMine ? '#fff' : C.primary} />
+            ) : (
+              <Ionicons
+                name={playing ? 'pause-circle' : 'play-circle'}
+                size={40}
+                color={isMine ? '#fff' : C.primary}
+              />
+            )}
             <View style={styles.audioWaveContainer}>
               <View style={styles.audioWave}>
                 {[...Array(16)].map((_, i) => (
@@ -118,17 +139,19 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
                     style={[
                       styles.audioBar,
                       {
-                        height: 4 + (i % 4) * 5,
-                        backgroundColor: playing
-                          ? (isMine ? '#fff' : C.primary)
-                          : (isMine ? 'rgba(255,255,255,0.6)' : 'rgba(150,150,150,0.8)'),
+                        height: loading ? 4 + (i % 4) * 3 : 4 + (i % 4) * 5,
+                        backgroundColor: loading
+                          ? (isMine ? 'rgba(255,255,255,0.3)' : 'rgba(150,150,150,0.4)')
+                          : playing
+                            ? (isMine ? '#fff' : C.primary)
+                            : (isMine ? 'rgba(255,255,255,0.6)' : 'rgba(150,150,150,0.8)'),
                       },
                     ]}
                   />
                 ))}
               </View>
               <Text style={[styles.audioDuration, { color: isMine ? 'rgba(255,255,255,0.75)' : C.textMuted }]}>
-                Voice Message
+                {loading ? 'Downloading...' : playing ? 'Playing...' : 'Voice Message'}
               </Text>
             </View>
           </TouchableOpacity>
@@ -192,8 +215,8 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
           <View style={[
             styles.bubble,
             isMine
-              ? [styles.bubbleMine, { backgroundColor: '#005C4B' }]
-              : [styles.bubbleTheirs, { backgroundColor: '#1F2C34' }],
+              ? [styles.bubbleMine, { backgroundColor: C.sent }]
+              : [styles.bubbleTheirs, { backgroundColor: C.received }],
           ]}>
             {renderReplyPreview()}
             {renderContent()}
@@ -215,10 +238,10 @@ const styles = StyleSheet.create({
   left: { justifyContent: 'flex-start', paddingLeft: 4 },
   right: { justifyContent: 'flex-end', paddingRight: 4 },
   replyIndicator: { position: 'absolute', left: 0, zIndex: 1 },
-  animatedBubble: { flex: 1 },
+  animatedBubble: { maxWidth: BUBBLE_MAX_WIDTH },
   bubble: {
-    maxWidth: '80%', padding: 8, paddingTop: 6, paddingBottom: 4,
-    borderRadius: 8, minWidth: 80,
+    padding: 8, paddingTop: 6, paddingBottom: 4,
+    borderRadius: 8,
   },
   bubbleMine: {
     borderBottomRightRadius: 0,
@@ -260,7 +283,7 @@ const styles = StyleSheet.create({
   docIconBox: { width: 46, height: 46, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
   docName: { fontSize: 13, fontWeight: '600', flexShrink: 1, color: '#E9EDEF' },
   docTap: { fontSize: 11, marginTop: 2, color: 'rgba(255,255,255,0.5)' },
-  meta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 2, gap: 4 },
+  meta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4, gap: 4 },
   time: { fontSize: 11, color: 'rgba(255,255,255,0.5)' },
   timeMine: { color: 'rgba(255,255,255,0.7)' },
 });

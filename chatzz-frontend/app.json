@@ -45,6 +45,11 @@
       ],
       "googleServicesFile": "./google-services.json"
     },
+    "updates": {
+      "url": "https://u.expo.dev/b7f29915-128e-4799-a082-606d932e4583",
+      "fallbackToCacheTimeout": 300
+    },
+    "runtimeVersion": "1.1.0",
     "plugins": [
       [
         "expo-build-properties",

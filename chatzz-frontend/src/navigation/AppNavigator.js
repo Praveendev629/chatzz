@@ -68,8 +68,8 @@ const AppNavigator = ({ navigationRef }) => {
       // Handle quick reply from notification
       if (action === 'reply' && data?.chatId && data?.senderId) {
         const replyText = response.userInput;
-        if (replyText) {
-          messageAPI.quickReply(data.chatId, data.senderId, replyText).catch(() => {});
+        if (replyText && replyText.trim() && replyText.trim() !== 'Type a reply...' && replyText.trim() !== 'Reply') {
+          messageAPI.quickReply(data.chatId, data.senderId, replyText.trim()).catch(() => {});
         }
       }
 

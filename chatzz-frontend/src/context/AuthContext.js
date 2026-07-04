@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
+import * as Application from 'expo-application';
 import * as FileSystem from 'expo-file-system';
 import { authAPI, userAPI } from '../services/api';
 import { registerForPushNotifications } from '../services/notifications';
@@ -85,22 +86,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Get or create unique device ID – persists across reinstalls, unique per physical device
+  // Get unique device ID – persists across reinstalls via Android's ANDROID_ID
   const getDeviceId = async () => {
-    // First, check if we already have a stored device ID
+    // Android's ANDROID_ID is a stable constant per device+app-signing-key
+    const androidId = Application.androidId;
+    if (androidId) return androidId;
+
+    // Fallback for iOS or edge cases
     let deviceId = await SecureStore.getItemAsync('chatzz_device_id');
+    if (deviceId) return deviceId;
 
-    if (!deviceId) {
-      // Generate a new unique ID combining hardware info + random suffix
-      const hardwareId = Device.osInternalBuildId || Device.deviceName || 'dev';
-      const randomSuffix = Math.random().toString(36).substring(2, 10);
-      const timestamp = Date.now().toString(36);
-      deviceId = `${hardwareId}_${timestamp}_${randomSuffix}`;
-
-      // Store it permanently (persists across reinstalls on same device)
-      await SecureStore.setItemAsync('chatzz_device_id', deviceId);
-    }
-
+    const hardwareId = Device.osInternalBuildId || Device.deviceName || 'dev';
+    const randomSuffix = Math.random().toString(36).substring(2, 10);
+    const timestamp = Date.now().toString(36);
+    deviceId = `${hardwareId}_${timestamp}_${randomSuffix}`;
+    await SecureStore.setItemAsync('chatzz_device_id', deviceId);
     return deviceId;
   };
 
