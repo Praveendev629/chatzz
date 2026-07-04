@@ -563,7 +563,7 @@ const HomeScreen = ({ navigation }) => {
                     <View style={[
                       styles.statusAvatarRing,
                       item.hasUnviewed
-                        ? { borderColor: '#00D26A' }
+                        ? { borderColor: '#FFD600' }
                         : { borderColor: C.textMuted }
                     ]}>
                       {item.user.profilePicture ? (
@@ -587,8 +587,8 @@ const HomeScreen = ({ navigation }) => {
             }}
             ListEmptyComponent={
               <View style={styles.emptyStatusContainer}>
-                <View style={[styles.emptyStatusIcon, { backgroundColor: `${C.primary}15` }]}>
-                  <Ionicons name="image-outline" size={48} color={C.primary} />
+                    <View style={[styles.emptyStatusIcon, { backgroundColor: '#FFD60015' }]}>
+                      <Ionicons name="image-outline" size={48} color="#FFD600" />
                 </View>
                 <Text style={[styles.emptyStatusTitle, { color: C.text }]}>No status updates yet</Text>
                 <Text style={[styles.emptyStatusSubtitle, { color: C.textMuted }]}>
