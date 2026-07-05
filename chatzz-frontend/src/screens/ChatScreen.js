@@ -451,6 +451,8 @@ const ChatScreen = ({ route, navigation }) => {
             )}
             contentContainerStyle={styles.messagesList}
             onContentSizeChange={scrollToBottom}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
             ListFooterComponent={isTyping ? <TypingIndicator username={participant.username} /> : null}
           />
         )}

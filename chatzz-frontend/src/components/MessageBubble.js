@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity,
-  TouchableWithoutFeedback, Linking, Alert, Animated, PanResponder,
+  TouchableWithoutFeedback, Linking, Alert, Animated,
   Dimensions, ActivityIndicator,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { Colors, BorderRadius, Spacing } from '../theme';
@@ -18,25 +19,20 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
   const C = colors || Colors;
   const translateX = useRef(new Animated.Value(0)).current;
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (evt, gestureState) => {
-        return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 10;
-      },
-      onPanResponderMove: (evt, gestureState) => {
-        if (gestureState.dx > 0 && gestureState.dx < 100) {
-          translateX.setValue(gestureState.dx);
-        }
-      },
-      onPanResponderRelease: (evt, gestureState) => {
-        if (gestureState.dx > 60) {
-          // Swipe right - trigger reply
-          if (onSwipeReply) onSwipeReply(message);
-        }
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-      },
+  const panGesture = Gesture.Pan()
+    .activeOffsetX(10)
+    .failOffsetY(-5)
+    .onUpdate((e) => {
+      if (e.translationX > 0 && e.translationX < 100) {
+        translateX.setValue(e.translationX);
+      }
     })
-  ).current;
+    .onEnd((e) => {
+      if (e.translationX > 60) {
+        if (onSwipeReply) onSwipeReply(message);
+      }
+      Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+    });
 
   if (message.deletedForEveryone) {
     return (
@@ -202,15 +198,17 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
   };
 
   return (
-    <View style={[styles.wrapper, isMine ? styles.right : styles.left]}>
+    <View
+      style={[styles.wrapper, isMine ? styles.right : styles.left]}
+    >
       {/* Swipe reply indicator */}
       <Animated.View style={[styles.replyIndicator, { opacity: translateX.interpolate({ inputRange: [0, 60], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
         <Ionicons name="arrow-back" size={20} color={C.primary} />
       </Animated.View>
-      <Animated.View
-        style={[styles.animatedBubble, { transform: [{ translateX }] }]}
-        {...panResponder.panHandlers}
-      >
+      <GestureDetector gesture={panGesture}>
+        <Animated.View
+          style={[styles.animatedBubble, { transform: [{ translateX }] }]}
+        >
         <TouchableWithoutFeedback
           onLongPress={!replySelectMode ? onLongPress : undefined}
           onPress={replySelectMode ? () => onTapForReply && onTapForReply(message) : undefined}
@@ -232,6 +230,7 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
           </View>
         </TouchableWithoutFeedback>
       </Animated.View>
+      </GestureDetector>
     </View>
   );
 };
