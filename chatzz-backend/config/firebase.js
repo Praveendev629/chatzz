@@ -22,6 +22,7 @@ const sendPushNotification = async ({ token, title, body, data = {}, category })
       data: data || {},
       sound: 'notification.wav',
       channelId: 'chatzz_messages',
+      priority: 'high',
       ...(category && { category }),
     }];
 

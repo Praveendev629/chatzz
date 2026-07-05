@@ -7,18 +7,6 @@ import { getActiveChatId } from '../utils/activeChat';
 const MESSAGE_CATEGORY = 'message_reply';
 const CALL_CATEGORY = 'call';
 
-Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    // Suppress notification if user is viewing the chat
-    const chatId = notification?.request?.content?.data?.chatId;
-    const activeChatId = getActiveChatId();
-    if (chatId && activeChatId && chatId === activeChatId) {
-      return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
-    }
-    return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true };
-  },
-});
-
 export const registerForPushNotifications = async () => {
   if (!Device.isDevice) {
     console.warn('Push notifications only work on physical devices');
