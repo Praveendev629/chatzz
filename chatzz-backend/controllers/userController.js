@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { sendPushNotification } = require('../config/firebase');
+const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 
 // @desc    Get all users (for search)
 // @route   GET /api/users
@@ -71,6 +72,11 @@ const updateProfile = async (req, res) => {
     if (req.body.settings) updates.settings = req.body.settings;
 
     if (req.file) {
+      // Delete old profile picture from Cloudinary
+      const currentUser = await User.findById(req.user._id);
+      if (currentUser.profilePicture) {
+        await deleteFromCloudinary(currentUser.profilePicture);
+      }
       updates.profilePicture = req.file.path;
     }
 
@@ -267,7 +273,11 @@ const deleteAccount = async (req, res) => {
       }
     }
 
-    // Delete messages
+    // Delete messages and their media from Cloudinary
+    const messages = await Message.find({ chatId: { $in: chatIds }, fileUrl: { $ne: null } }).lean();
+    for (const msg of messages) {
+      await deleteFromCloudinary(msg.fileUrl);
+    }
     await Message.deleteMany({ chatId: { $in: chatIds } });
     // Delete chats
     await Chat.deleteMany({ participants: userId });
@@ -319,6 +329,10 @@ const adminDeleteUser = async (req, res) => {
           });
         }
       }
+    }
+    const adminMessages = await Message.find({ chatId: { $in: chatIds }, fileUrl: { $ne: null } }).lean();
+    for (const msg of adminMessages) {
+      await deleteFromCloudinary(msg.fileUrl);
     }
     await Message.deleteMany({ chatId: { $in: chatIds } });
     await Chat.deleteMany({ participants: userId });

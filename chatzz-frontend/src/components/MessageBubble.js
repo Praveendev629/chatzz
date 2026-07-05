@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity,
   TouchableWithoutFeedback, Linking, Alert, Animated,
@@ -8,6 +8,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { Colors, BorderRadius, Spacing } from '../theme';
+import { preloadAudio, downloadMedia, getCachedOrRemote } from '../utils/mediaCache';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BUBBLE_MAX_WIDTH = SCREEN_WIDTH * 0.75;
@@ -16,8 +17,20 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sound, setSound] = useState(null);
+  const [cachedImageUri, setCachedImageUri] = useState(null);
   const C = colors || Colors;
   const translateX = useRef(new Animated.Value(0)).current;
+
+  // Pre-cache images on mount
+  useEffect(() => {
+    if (message.messageType === 'image' && message.fileUrl) {
+      getCachedOrRemote(message.fileUrl).then(setCachedImageUri);
+    }
+    if (message.messageType === 'document' && message.fileUrl) {
+      // Pre-cache documents in background
+      downloadMedia(message.fileUrl).catch(() => {});
+    }
+  }, [message.fileUrl, message.messageType]);
 
   const panGesture = Gesture.Pan()
     .activeOffsetX(10)
@@ -53,8 +66,10 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
     }
     try {
       setLoading(true);
+      // Download audio to local storage first
+      const { uri } = await preloadAudio(message.fileUrl);
       const { sound: s } = await Audio.Sound.createAsync(
-        { uri: message.fileUrl },
+        { uri },
         { shouldPlay: true }
       );
       setSound(s);
@@ -77,13 +92,17 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
   const openDocument = async () => {
     if (!message.fileUrl) return;
     try {
-      const supported = await Linking.canOpenURL(message.fileUrl);
+      setLoading(true);
+      const localUri = await downloadMedia(message.fileUrl);
+      setLoading(false);
+      const supported = await Linking.canOpenURL(localUri);
       if (supported) {
-        await Linking.openURL(message.fileUrl);
+        await Linking.openURL(localUri);
       } else {
         Alert.alert('Cannot open', 'Install a file viewer app to open this document.');
       }
     } catch {
+      setLoading(false);
       Alert.alert('Error', 'Could not open document');
     }
   };
@@ -108,7 +127,7 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
         return (
           <TouchableOpacity onPress={() => onImagePress && onImagePress(message.fileUrl)} activeOpacity={0.9}>
             <Image
-              source={{ uri: message.fileUrl }}
+              source={{ uri: cachedImageUri || message.fileUrl }}
               style={styles.imageContent}
               resizeMode="cover"
             />

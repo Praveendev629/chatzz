@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, Image,
   ActivityIndicator, StatusBar, Alert, Modal, TextInput, Dimensions,
 } from 'react-native';
+import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { statusAPI } from '../services/api';
@@ -322,11 +323,22 @@ const StatusScreen = ({ navigation }) => {
 
               {/* Content */}
               <View style={[styles.viewContent, { backgroundColor: viewingStatus.backgroundColor || '#1a1a2e' }]}>
-                {viewingStatus.mediaUrl ? (
+                {viewingStatus.mediaType === 'video' && viewingStatus.mediaUrl ? (
+                  <Video
+                    source={{ uri: viewingStatus.mediaUrl }}
+                    style={styles.viewVideo}
+                    resizeMode={ResizeMode.CONTAIN}
+                    shouldPlay
+                    isLooping
+                    useNativeControls
+                  />
+                ) : viewingStatus.mediaUrl ? (
                   <Image source={{ uri: viewingStatus.mediaUrl }} style={styles.viewImage} resizeMode="contain" />
                 ) : null}
                 {viewingStatus.content ? (
-                  <Text style={styles.viewText}>{viewingStatus.content}</Text>
+                  <Text style={[styles.viewText, (viewingStatus.mediaUrl) && styles.viewTextOverMedia]}>
+                    {viewingStatus.content}
+                  </Text>
                 ) : null}
               </View>
 
@@ -418,7 +430,9 @@ const styles = StyleSheet.create({
   viewTime: { color: '#9E9E9E', fontSize: 12 },
   viewContent: { flex: 1, margin: 20, borderRadius: 12, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   viewImage: { width: '100%', height: '100%' },
+  viewVideo: { width: '100%', height: '80%' },
   viewText: { color: '#fff', fontSize: 22, fontWeight: '600', textAlign: 'center', padding: 20 },
+  viewTextOverMedia: { position: 'absolute', bottom: 20, left: 0, right: 0, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
   viewedByContainer: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: 16, paddingBottom: 30,

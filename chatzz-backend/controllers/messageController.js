@@ -2,6 +2,7 @@ const Message = require('../models/Message');
 const Chat = require('../models/Chat');
 const User = require('../models/User');
 const { sendPushNotification } = require('../config/firebase');
+const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 
 // @desc    Get messages for a chat
 // @route   GET /api/messages/:chatId
@@ -202,6 +203,10 @@ const deleteMessage = async (req, res) => {
     if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
 
     if (deleteForEveryone && message.sender.toString() === req.user._id.toString()) {
+      // Delete file from Cloudinary
+      if (message.fileUrl) {
+        await deleteFromCloudinary(message.fileUrl);
+      }
       message.deletedForEveryone = true;
       message.content = '';
       message.fileUrl = null;
