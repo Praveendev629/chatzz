@@ -31,7 +31,13 @@ const StatusScreen = ({ navigation }) => {
     setLoading(true);
     try {
       const result = await statusAPI.getAll();
-      setStatuses(result.statuses || []);
+      const allStatuses = [
+        // Include own statuses from ownStatuses field
+        ...(result.ownStatuses || []).map((s) => ({ ...s, user: { _id: user._id, username: user.username, profilePicture: user.profilePicture } })),
+        // Include other users' statuses from the grouped statuses array
+        ...(result.statuses || []).flatMap((group) => group.statuses || []),
+      ];
+      setStatuses(allStatuses);
     } catch (err) {
       console.error(err);
     } finally {

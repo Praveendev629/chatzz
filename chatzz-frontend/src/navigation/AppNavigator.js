@@ -68,7 +68,9 @@ const AppNavigator = ({ navigationRef }) => {
       // Handle quick reply from notification
       if (action === 'reply' && data?.chatId && data?.senderId) {
         const replyText = response.userInput;
-        if (replyText && replyText.trim() && replyText.trim() !== 'Type a reply...' && replyText.trim() !== 'Reply') {
+        // Skip empty, placeholder, or button title text
+        const placeholderTexts = ['Type a reply...', 'Type a message...', 'Reply', 'Send'];
+        if (replyText && replyText.trim() && !placeholderTexts.includes(replyText.trim())) {
           messageAPI.quickReply(data.chatId, data.senderId, replyText.trim()).catch(() => {});
         }
       }

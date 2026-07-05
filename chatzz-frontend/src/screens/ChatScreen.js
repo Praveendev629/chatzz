@@ -335,11 +335,11 @@ const ChatScreen = ({ route, navigation }) => {
   };
 
   const handleLongPressMessage = (message) => {
-    const isMine = message.sender?._id === user._id;
     const options = [
+      { text: 'Reply', onPress: () => handleSwipeReply(message) },
       { text: 'Delete for Me', style: 'destructive', onPress: () => deleteMessage(message._id, false) },
     ];
-    if (isMine) {
+    if (message.sender?._id === user._id) {
       options.push({ text: 'Delete for Everyone', style: 'destructive', onPress: () => deleteMessage(message._id, true) });
     }
     options.push({ text: 'Cancel', style: 'cancel' });
