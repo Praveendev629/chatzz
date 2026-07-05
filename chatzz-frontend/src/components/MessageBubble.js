@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Image, TouchableOpacity,
-  TouchableWithoutFeedback, Linking, Alert, Animated,
+  TouchableWithoutFeedback, Linking, Alert, Animated, PanResponder,
   Dimensions, ActivityIndicator,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { Colors, BorderRadius, Spacing } from '../theme';
@@ -27,25 +26,36 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
       getCachedOrRemote(message.fileUrl).then(setCachedImageUri);
     }
     if (message.messageType === 'document' && message.fileUrl) {
-      // Pre-cache documents in background
       downloadMedia(message.fileUrl).catch(() => {});
     }
   }, [message.fileUrl, message.messageType]);
 
-  const panGesture = Gesture.Pan()
-    .activeOffsetX(10)
-    .failOffsetY(-5)
-    .onUpdate((e) => {
-      if (e.translationX > 0 && e.translationX < 100) {
-        translateX.setValue(e.translationX);
-      }
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only claim clear horizontal swipes, reject vertical movement
+        return (
+          gestureState.dx > 15 &&
+          Math.abs(gestureState.dy) < Math.abs(gestureState.dx) * 0.5
+        );
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        if (gestureState.dx > 0 && gestureState.dx < 120) {
+          translateX.setValue(gestureState.dx);
+        }
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 60) {
+          if (onSwipeReply) onSwipeReply(message);
+        }
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+      },
     })
-    .onEnd((e) => {
-      if (e.translationX > 60) {
-        if (onSwipeReply) onSwipeReply(message);
-      }
-      Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-    });
+  ).current;
 
   if (message.deletedForEveryone) {
     return (
@@ -224,10 +234,10 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
       <Animated.View style={[styles.replyIndicator, { opacity: translateX.interpolate({ inputRange: [0, 60], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
         <Ionicons name="arrow-back" size={20} color={C.primary} />
       </Animated.View>
-      <GestureDetector gesture={panGesture}>
-        <Animated.View
-          style={[styles.animatedBubble, { transform: [{ translateX }] }]}
-        >
+      <Animated.View
+        style={[styles.animatedBubble, { transform: [{ translateX }] }]}
+        {...panResponder.panHandlers}
+      >
         <TouchableWithoutFeedback
           onLongPress={!replySelectMode ? onLongPress : undefined}
           onPress={replySelectMode ? () => onTapForReply && onTapForReply(message) : undefined}
@@ -249,7 +259,6 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
           </View>
         </TouchableWithoutFeedback>
       </Animated.View>
-      </GestureDetector>
     </View>
   );
 };
