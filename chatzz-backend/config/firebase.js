@@ -8,28 +8,38 @@ const getExpo = () => {
 };
 
 const sendPushNotification = async ({ token, title, body, data = {}, category }) => {
-  if (!token) return;
+  if (!token) {
+    console.warn('Push skipped: no token for receiver');
+    return;
+  }
 
   // Expo push tokens start with ExponentPushToken or ExpoPushToken
   const isExpoToken = token.startsWith('ExponentPushToken') || token.startsWith('ExpoPushToken');
 
   if (isExpoToken) {
-    // Send via Expo Push API — supports categories for inline reply
+    // Validate the token
+    if (!Expo.isExpoPushToken(token)) {
+      console.warn('Invalid Expo push token:', token);
+      return;
+    }
+
     const messages = [{
       to: token,
       title,
       body,
       data: data || {},
-      sound: 'notification.wav',
+      sound: 'default',
       channelId: 'chatzz_messages',
       priority: 'high',
       ...(category && { category }),
     }];
 
+    console.log(`Sending Expo push to ${token.substring(0, 30)}...`);
     const chunks = getExpo().chunkPushNotifications(messages);
     for (const chunk of chunks) {
       try {
-        await getExpo().sendPushNotificationsAsync(chunk);
+        const receipts = await getExpo().sendPushNotificationsAsync(chunk);
+        console.log('Expo push receipts:', JSON.stringify(receipts));
       } catch (err) {
         console.error('Expo push error:', err.message);
       }
@@ -38,6 +48,7 @@ const sendPushNotification = async ({ token, title, body, data = {}, category })
   }
 
   // Fallback: send via Firebase for legacy FCM tokens
+  console.log('Using Firebase fallback for token:', token.substring(0, 30));
   try {
     const admin = require('firebase-admin');
     if (!admin.apps.length) {

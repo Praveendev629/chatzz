@@ -364,30 +364,39 @@ const StatusScreen = ({ navigation }) => {
               </View>
 
               {/* Content */}
-              {(viewingStatus.mediaType === 'video' || (viewingStatus.mediaUrl && viewingStatus.mediaUrl.match(/\.(mp4|mov|avi|webm)/i))) && viewingStatus.mediaUrl ? (
-                <View style={styles.viewVideoContainer}>
-                  <Video
-                    source={{ uri: viewingStatus.mediaUrl }}
-                    style={styles.viewVideo}
-                    resizeMode={ResizeMode.CONTAIN}
-                    shouldPlay
-                    isLooping
-                    useNativeControls
-                  />
-                  {viewingStatus.content ? (
-                    <Text style={styles.viewTextOverMedia}>{viewingStatus.content}</Text>
-                  ) : null}
-                </View>
-              ) : (
-                <View style={[styles.viewContent, { backgroundColor: viewingStatus.backgroundColor || '#1a1a2e' }]}>
-                  {viewingStatus.mediaUrl ? (
-                    <Image source={{ uri: viewingStatus.mediaUrl }} style={styles.viewImage} resizeMode="contain" />
-                  ) : null}
-                  {viewingStatus.content ? (
-                    <Text style={styles.viewText}>{viewingStatus.content}</Text>
-                  ) : null}
-                </View>
-              )}
+              {(() => {
+                const isVideo = viewingStatus.mediaType === 'video'
+                  || (viewingStatus.mediaUrl && /\.(mp4|mov|avi|webm)$/i.test(viewingStatus.mediaUrl));
+                const hasMedia = !!viewingStatus.mediaUrl;
+
+                if (isVideo && hasMedia) {
+                  return (
+                    <View style={styles.viewVideoContainer}>
+                      <Video
+                        source={{ uri: viewingStatus.mediaUrl }}
+                        style={styles.viewVideo}
+                        resizeMode={ResizeMode.CONTAIN}
+                        shouldPlay
+                        isLooping
+                        useNativeControls
+                      />
+                      {viewingStatus.content && viewingStatus.content !== 'Video' ? (
+                        <Text style={styles.viewTextOverMedia}>{viewingStatus.content}</Text>
+                      ) : null}
+                    </View>
+                  );
+                }
+                return (
+                  <View style={[styles.viewContent, { backgroundColor: viewingStatus.backgroundColor || '#1a1a2e' }]}>
+                    {hasMedia ? (
+                      <Image source={{ uri: viewingStatus.mediaUrl }} style={styles.viewImage} resizeMode="contain" />
+                    ) : null}
+                    {viewingStatus.content ? (
+                      <Text style={styles.viewText}>{viewingStatus.content}</Text>
+                    ) : null}
+                  </View>
+                );
+              })()}
 
               {/* Viewed by */}
               <View style={styles.viewedByContainer}>
