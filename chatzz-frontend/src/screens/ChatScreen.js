@@ -40,6 +40,7 @@ const ChatScreen = ({ route, navigation }) => {
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
+  const [replySelectMode, setReplySelectMode] = useState(false);
 
   const flatListRef = useRef(null);
   const typingTimeout = useRef(null);
@@ -441,6 +442,11 @@ const ChatScreen = ({ route, navigation }) => {
                 onImagePress={(url) => setImagePreview(url)}
                 onSwipeReply={handleSwipeReply}
                 colors={C}
+                replySelectMode={replySelectMode}
+                onTapForReply={(msg) => {
+                  setReplyTo(msg);
+                  setReplySelectMode(false);
+                }}
               />
             )}
             contentContainerStyle={styles.messagesList}
@@ -467,6 +473,14 @@ const ChatScreen = ({ route, navigation }) => {
         </View>
       )}
 
+      {/* Reply select mode hint */}
+      {replySelectMode && !replyTo && (
+        <View style={[styles.replySelectHint, { backgroundColor: `${C.primary}15`, borderTopColor: C.border }]}>
+          <Ionicons name="finger-forward" size={16} color={C.primary} />
+          <Text style={[styles.replySelectHintText, { color: C.primary }]}>Tap a message to reply</Text>
+        </View>
+      )}
+
       {/* Input Bar */}
       <View style={[styles.inputBar, { backgroundColor: C.surface, borderTopColor: C.border, paddingBottom: Math.max(insets.bottom, 8) }]}>
         {isRecording ? (
@@ -482,6 +496,15 @@ const ChatScreen = ({ route, navigation }) => {
           </View>
         ) : (
           <>
+            <TouchableOpacity
+              style={[styles.replyModeBtn, replySelectMode && { backgroundColor: `${C.primary}30` }]}
+              onPress={() => {
+                setReplySelectMode(!replySelectMode);
+                if (replyTo) setReplyTo(null);
+              }}
+            >
+              <Ionicons name="arrow-undo" size={22} color={replySelectMode ? C.primary : C.textSecondary} />
+            </TouchableOpacity>
             <TouchableOpacity style={styles.attachBtn} onPress={() => setShowAttachMenu(true)}>
               <Ionicons name="attach" size={26} color={C.textSecondary} />
             </TouchableOpacity>
@@ -583,6 +606,12 @@ const styles = StyleSheet.create({
   replyPreviewSender: { fontSize: 13, fontWeight: '700' },
   replyPreviewText: { fontSize: 12, marginTop: 2 },
   replyCancelBtn: { padding: 8 },
+  replySelectHint: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1,
+  },
+  replySelectHintText: { fontSize: 13, fontWeight: '600' },
+  replyModeBtn: { padding: 8, marginBottom: 2, borderRadius: 16 },
   attachBtn: { padding: 8, marginBottom: 2 },
   textInput: {
     flex: 1, borderRadius: 22,

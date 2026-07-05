@@ -11,7 +11,7 @@ import { Colors, BorderRadius, Spacing } from '../theme';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BUBBLE_MAX_WIDTH = SCREEN_WIDTH * 0.75;
 
-const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeReply, colors }) => {
+const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeReply, colors, replySelectMode, onTapForReply }) => {
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sound, setSound] = useState(null);
@@ -211,7 +211,10 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
         style={[styles.animatedBubble, { transform: [{ translateX }] }]}
         {...panResponder.panHandlers}
       >
-        <TouchableWithoutFeedback onLongPress={onLongPress}>
+        <TouchableWithoutFeedback
+          onLongPress={!replySelectMode ? onLongPress : undefined}
+          onPress={replySelectMode ? () => onTapForReply && onTapForReply(message) : undefined}
+        >
           <View style={[
             styles.bubble,
             isMine
