@@ -49,6 +49,7 @@ export const userAPI = {
   unblockUser: (userId) => api.delete(`/users/${userId}/block`),
   getRequests: () => api.get('/users/requests'),
   deleteAccount: () => api.delete('/users/account'),
+  deleteCloudinary: (url) => api.post('/users/delete-cloudinary', { url }),
   // Admin endpoints (password protected on frontend, called with admin key)
   adminGetAllUsers: (password) => api.post('/users/admin/list', { password }),
   adminDeleteUser: (userId, password) => api.delete(`/users/admin/${userId}`, { data: { password } }),

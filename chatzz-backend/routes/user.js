@@ -14,6 +14,7 @@ const {
   deleteAccount,
   adminGetAllUsers,
   adminDeleteUser,
+  deleteCachedMedia,
 } = require('../controllers/userController');
 
 // Admin routes (no auth required – password validated in controller)
@@ -34,6 +35,7 @@ router.post('/:id/request', protect, sendChatRequest);
 router.put('/request/:userId/respond', protect, respondChatRequest);
 router.post('/:id/block', protect, blockUser);
 router.delete('/:id/block', protect, unblockUser);
+router.post('/delete-cloudinary', protect, deleteCachedMedia);
 router.delete('/account', protect, deleteAccount);
 
 module.exports = router;

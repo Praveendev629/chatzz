@@ -20,12 +20,16 @@ const MessageBubble = ({ message, isMine, onLongPress, onImagePress, onSwipeRepl
   const C = colors || Colors;
   const translateX = useRef(new Animated.Value(0)).current;
 
-  // Pre-cache images on mount
+  // Pre-cache media on mount
   useEffect(() => {
     if (message.messageType === 'image' && message.fileUrl) {
-      getCachedOrRemote(message.fileUrl).then(setCachedImageUri);
-    }
-    if (message.messageType === 'document' && message.fileUrl) {
+      // Download image to local cache and use it
+      downloadMedia(message.fileUrl).then(setCachedImageUri);
+    } else if (message.messageType === 'audio' && message.fileUrl) {
+      // Pre-download audio in background for offline playback
+      preloadAudio(message.fileUrl).catch(() => {});
+    } else if (message.messageType === 'document' && message.fileUrl) {
+      // Pre-download documents in background
       downloadMedia(message.fileUrl).catch(() => {});
     }
   }, [message.fileUrl, message.messageType]);

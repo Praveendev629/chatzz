@@ -343,6 +343,21 @@ const adminDeleteUser = async (req, res) => {
   }
 };
 
+// @desc    Delete a Cloudinary file after client has cached it locally
+// @route   POST /api/users/delete-cloudinary
+// @access  Private
+const deleteCachedMedia = async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ success: false, message: 'URL required' });
+
+    await deleteFromCloudinary(url);
+    res.status(200).json({ success: true, message: 'File deleted from Cloudinary' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserProfile,
@@ -355,4 +370,5 @@ module.exports = {
   deleteAccount,
   adminGetAllUsers,
   adminDeleteUser,
+  deleteCachedMedia,
 };

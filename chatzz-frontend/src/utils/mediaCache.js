@@ -1,7 +1,11 @@
 import * as FileSystem from 'expo-file-system';
 import { Audio } from 'expo-av';
+import { userAPI } from '../services/api';
 
 const CACHE_DIR = `${FileSystem.documentDirectory}media_cache/`;
+
+// Track which URLs have already been deleted from Cloudinary
+const deletedUrls = new Set();
 
 const ensureCacheDir = async () => {
   const info = await FileSystem.getInfoAsync(CACHE_DIR);
@@ -16,6 +20,20 @@ const getLocalPath = (url) => {
   return `${CACHE_DIR}${hash}`;
 };
 
+// Request server to delete file from Cloudinary after local cache is saved
+const requestCloudinaryDelete = async (url) => {
+  if (!url || deletedUrls.has(url)) return;
+  // Only delete Cloudinary URLs, skip local files
+  if (url.startsWith('/uploads/') || url.startsWith('file://')) return;
+
+  deletedUrls.add(url);
+  try {
+    await userAPI.deleteCloudinary(url);
+  } catch (_) {
+    // Non-critical — file stays on Cloudinary, no user-facing error
+  }
+};
+
 export const downloadMedia = async (url) => {
   if (!url) return null;
 
@@ -24,11 +42,17 @@ export const downloadMedia = async (url) => {
 
   // Check if already cached
   const info = await FileSystem.getInfoAsync(localPath);
-  if (info.exists) return localPath;
+  if (info.exists) {
+    // Already cached — request Cloudinary deletion if not done yet
+    requestCloudinaryDelete(url);
+    return localPath;
+  }
 
   // Download
   try {
     const { uri } = await FileSystem.downloadAsync(url, localPath);
+    // Successfully cached — tell server to free Cloudinary space
+    requestCloudinaryDelete(url);
     return uri;
   } catch (err) {
     console.warn('Media cache download failed:', err.message);
@@ -43,7 +67,10 @@ export const getCachedOrRemote = async (url) => {
   const localPath = getLocalPath(url);
 
   const info = await FileSystem.getInfoAsync(localPath);
-  if (info.exists) return localPath;
+  if (info.exists) {
+    requestCloudinaryDelete(url);
+    return localPath;
+  }
 
   return url; // Not cached yet, return remote
 };
@@ -72,10 +99,13 @@ export const preloadAudio = async (url) => {
   if (!info.exists) {
     try {
       await FileSystem.downloadAsync(url, localPath);
+      requestCloudinaryDelete(url);
     } catch (err) {
       console.warn('Audio preload failed:', err.message);
       return { uri: url, isLocal: false };
     }
+  } else {
+    requestCloudinaryDelete(url);
   }
 
   return { uri: localPath, isLocal: true };
