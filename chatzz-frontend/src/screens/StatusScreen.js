@@ -322,8 +322,8 @@ const StatusScreen = ({ navigation }) => {
               </View>
 
               {/* Content */}
-              <View style={[styles.viewContent, { backgroundColor: viewingStatus.backgroundColor || '#1a1a2e' }]}>
-                {viewingStatus.mediaType === 'video' && viewingStatus.mediaUrl ? (
+              {viewingStatus.mediaType === 'video' && viewingStatus.mediaUrl ? (
+                <View style={styles.viewVideoContainer}>
                   <Video
                     source={{ uri: viewingStatus.mediaUrl }}
                     style={styles.viewVideo}
@@ -332,15 +332,20 @@ const StatusScreen = ({ navigation }) => {
                     isLooping
                     useNativeControls
                   />
-                ) : viewingStatus.mediaUrl ? (
-                  <Image source={{ uri: viewingStatus.mediaUrl }} style={styles.viewImage} resizeMode="contain" />
-                ) : null}
-                {viewingStatus.content ? (
-                  <Text style={[styles.viewText, (viewingStatus.mediaUrl) && styles.viewTextOverMedia]}>
-                    {viewingStatus.content}
-                  </Text>
-                ) : null}
-              </View>
+                  {viewingStatus.content ? (
+                    <Text style={styles.viewTextOverMedia}>{viewingStatus.content}</Text>
+                  ) : null}
+                </View>
+              ) : (
+                <View style={[styles.viewContent, { backgroundColor: viewingStatus.backgroundColor || '#1a1a2e' }]}>
+                  {viewingStatus.mediaUrl ? (
+                    <Image source={{ uri: viewingStatus.mediaUrl }} style={styles.viewImage} resizeMode="contain" />
+                  ) : null}
+                  {viewingStatus.content ? (
+                    <Text style={styles.viewText}>{viewingStatus.content}</Text>
+                  ) : null}
+                </View>
+              )}
 
               {/* Viewed by */}
               <View style={styles.viewedByContainer}>
@@ -429,8 +434,9 @@ const styles = StyleSheet.create({
   viewUsername: { color: '#fff', fontSize: 16, fontWeight: '700' },
   viewTime: { color: '#9E9E9E', fontSize: 12 },
   viewContent: { flex: 1, margin: 20, borderRadius: 12, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  viewVideoContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
   viewImage: { width: '100%', height: '100%' },
-  viewVideo: { width: '100%', height: '80%' },
+  viewVideo: { width: '100%', height: '100%' },
   viewText: { color: '#fff', fontSize: 22, fontWeight: '600', textAlign: 'center', padding: 20 },
   viewTextOverMedia: { position: 'absolute', bottom: 20, left: 0, right: 0, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
   viewedByContainer: {
