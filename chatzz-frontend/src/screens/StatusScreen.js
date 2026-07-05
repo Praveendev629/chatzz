@@ -20,7 +20,8 @@ const StatusScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [statusText, setStatusText] = useState('');
-  const [statusImage, setStatusImage] = useState(null);
+  const [statusMedia, setStatusMedia] = useState(null);
+  const [statusMediaType, setStatusMediaType] = useState(null);
   const [posting, setPosting] = useState(false);
   const [viewingStatus, setViewingStatus] = useState(null);
 
@@ -46,41 +47,65 @@ const StatusScreen = ({ navigation }) => {
     }
   };
 
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const pickMedia = async (useCamera = false) => {
+    const permissionMethod = useCamera
+      ? ImagePicker.requestCameraPermissionsAsync
+      : ImagePicker.requestMediaLibraryPermissionsAsync;
+    const { status } = await permissionMethod();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Allow photo access in settings');
+      Alert.alert('Permission needed', 'Allow access in settings');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+
+    const launchMethod = useCamera
+      ? ImagePicker.launchCameraAsync
+      : ImagePicker.launchImageLibraryAsync;
+
+    const result = await launchMethod({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       quality: 0.8,
       allowsEditing: true,
+      videoMaxDuration: 30,
     });
+
     if (!result.canceled) {
-      setStatusImage(result.assets[0].uri);
+      const asset = result.assets[0];
+      const uri = asset.uri;
+      const ext = uri.split('.').pop().toLowerCase();
+      const isVideo = asset.type === 'video' || ['mp4', 'mov', 'avi', 'webm'].includes(ext);
+      setStatusMedia(uri);
+      setStatusMediaType(isVideo ? 'video' : 'image');
     }
   };
 
   const postStatus = async () => {
-    if (!statusText.trim() && !statusImage) {
-      Alert.alert('Error', 'Add text or image to your status');
+    if (!statusText.trim() && !statusMedia) {
+      Alert.alert('Error', 'Add text or media to your status');
       return;
     }
     setPosting(true);
     try {
       const formData = new FormData();
       formData.append('content', statusText.trim());
-      if (statusImage) {
-        const filename = statusImage.split('/').pop();
+      formData.append('mediaType', statusMediaType || (statusText.trim() && !statusMedia ? 'text' : 'image'));
+
+      if (statusMedia) {
+        const filename = statusMedia.split('/').pop();
         const ext = filename.split('.').pop().toLowerCase();
-        const type = ext === 'png' ? 'image/png' : 'image/jpeg';
-        formData.append('media', { uri: statusImage, name: filename, type });
+        let mimeType = 'image/jpeg';
+        if (statusMediaType === 'video' || ['mp4', 'mov', 'avi', 'webm'].includes(ext)) {
+          mimeType = ext === 'mov' ? 'video/quicktime' : `video/${ext}`;
+        } else if (ext === 'png') {
+          mimeType = 'image/png';
+        }
+        formData.append('media', { uri: statusMedia, name: filename, type: mimeType });
       }
+
       await statusAPI.create(formData);
       setShowCreate(false);
       setStatusText('');
-      setStatusImage(null);
+      setStatusMedia(null);
+      setStatusMediaType(null);
       fetchStatuses();
     } catch (err) {
       Alert.alert('Error', err.message);
@@ -243,7 +268,7 @@ const StatusScreen = ({ navigation }) => {
         <View style={styles.createOverlay}>
           <View style={[styles.createSheet, { backgroundColor: C.surface }]}>
             <View style={[styles.createHeader, { borderBottomColor: C.border }]}>
-              <TouchableOpacity onPress={() => { setShowCreate(false); setStatusText(''); setStatusImage(null); }}>
+              <TouchableOpacity onPress={() => { setShowCreate(false); setStatusText(''); setStatusMedia(null); setStatusMediaType(null); }}>
                 <Ionicons name="close" size={24} color={C.text} />
               </TouchableOpacity>
               <Text style={[styles.createTitle, { color: C.text }]}>New Status</Text>
@@ -256,21 +281,38 @@ const StatusScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            {statusImage ? (
+            {statusMedia ? (
               <View style={styles.imagePreview}>
-                <Image source={{ uri: statusImage }} style={styles.previewImage} />
+                {statusMediaType === 'video' ? (
+                  <Video
+                    source={{ uri: statusMedia }}
+                    style={styles.previewImage}
+                    resizeMode={ResizeMode.CONTAIN}
+                    shouldPlay
+                    isLooping
+                    useNativeControls
+                  />
+                ) : (
+                  <Image source={{ uri: statusMedia }} style={styles.previewImage} />
+                )}
                 <TouchableOpacity
                   style={styles.removeImage}
-                  onPress={() => setStatusImage(null)}
+                  onPress={() => { setStatusMedia(null); setStatusMediaType(null); }}
                 >
                   <Ionicons name="close-circle" size={28} color="#fff" />
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={styles.pickImageBtn} onPress={pickImage}>
-                <Ionicons name="image" size={40} color={C.primary} />
-                <Text style={[styles.pickImageText, { color: C.textMuted }]}>Add Photo</Text>
-              </TouchableOpacity>
+              <View style={styles.pickMediaRow}>
+                <TouchableOpacity style={styles.pickMediaBtn} onPress={() => pickMedia(false)}>
+                  <Ionicons name="images" size={32} color={C.primary} />
+                  <Text style={[styles.pickImageText, { color: C.textMuted }]}>Gallery</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.pickMediaBtn} onPress={() => pickMedia(true)}>
+                  <Ionicons name="camera" size={32} color={C.primary} />
+                  <Text style={[styles.pickImageText, { color: C.textMuted }]}>Camera</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             <TextInput
@@ -322,7 +364,7 @@ const StatusScreen = ({ navigation }) => {
               </View>
 
               {/* Content */}
-              {viewingStatus.mediaType === 'video' && viewingStatus.mediaUrl ? (
+              {(viewingStatus.mediaType === 'video' || (viewingStatus.mediaUrl && viewingStatus.mediaUrl.match(/\.(mp4|mov|avi|webm)/i))) && viewingStatus.mediaUrl ? (
                 <View style={styles.viewVideoContainer}>
                   <Video
                     source={{ uri: viewingStatus.mediaUrl }}
@@ -410,12 +452,16 @@ const styles = StyleSheet.create({
   imagePreview: { height: 250, margin: Spacing.lg, borderRadius: 12, overflow: 'hidden' },
   previewImage: { width: '100%', height: '100%' },
   removeImage: { position: 'absolute', top: 8, right: 8 },
-  pickImageBtn: {
-    height: 120, margin: Spacing.lg, borderRadius: 12,
+  pickImageText: { fontSize: 14, marginTop: 8 },
+  pickMediaRow: {
+    flexDirection: 'row', justifyContent: 'space-around',
+    margin: Spacing.lg, marginBottom: 0,
+  },
+  pickMediaBtn: {
+    flex: 1, height: 100, marginHorizontal: 4, borderRadius: 12,
     borderWidth: 2, borderStyle: 'dashed',
     alignItems: 'center', justifyContent: 'center',
   },
-  pickImageText: { fontSize: 14, marginTop: 8 },
   statusInput: {
     marginHorizontal: Spacing.lg, marginTop: 8,
     padding: Spacing.md, fontSize: 16, minHeight: 100,
