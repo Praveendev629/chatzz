@@ -85,14 +85,10 @@ export const registerForPushNotifications = async () => {
   }
 
   try {
-    const token = (await Notifications.getExpoPushTokenAsync({ projectId: 'b7f29915-128e-4799-a082-606d932e4583' })).data;
+    // Use native FCM token for direct Firebase delivery (bypasses Expo push infra)
+    const token = (await Notifications.getDevicePushTokenAsync()).data;
     return token;
-  } catch {
-    try {
-      const token = (await Notifications.getDevicePushTokenAsync()).data;
-      return token;
-    } catch { return null; }
-  }
+  } catch { return null; }
 };
 
 export const addNotificationListener = (callback) => {
