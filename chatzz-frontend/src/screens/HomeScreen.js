@@ -127,13 +127,9 @@ const HomeScreen = ({ navigation }) => {
   const fetchStatuses = async () => {
     try {
       const result = await statusAPI.getAll();
-      console.log('STATUS_DEBUG fetchStatuses:', JSON.stringify({ ownCount: (result.ownStatuses || []).length, otherCount: (result.statuses || []).length }));
       setStatuses(result.statuses || []);
       setOwnStatuses(result.ownStatuses || []);
-    } catch (err) {
-      console.error('STATUS_DEBUG fetchStatuses error:', err.message);
-      Alert.alert('Status Load Error', err.message);
-    }
+    } catch (err) { console.error(err); }
   };
 
   // Auto-refresh interval
@@ -190,8 +186,7 @@ const HomeScreen = ({ navigation }) => {
         });
       }, 100);
 
-        const createResult = await statusAPI.create(formData);
-        console.log('STATUS_DEBUG createText:', JSON.stringify(createResult));
+        await statusAPI.create(formData);
 
         clearInterval(progressInterval);
         setUploadProgress(100);
@@ -203,7 +198,6 @@ const HomeScreen = ({ navigation }) => {
           fetchStatuses();
         }, 500);
       } catch (err) {
-        console.error('Text status error:', err);
         setUploading(false);
         Alert.alert('Error', err.message || 'Failed to create status');
       }
@@ -235,20 +229,16 @@ const HomeScreen = ({ navigation }) => {
           });
         }, 200);
 
-        const createResult = await statusAPI.create(formData);
-        console.log('STATUS_DEBUG createImage:', JSON.stringify(createResult));
+        await statusAPI.create(formData);
 
         clearInterval(progressInterval);
         setUploadProgress(100);
-        setTimeout(async () => {
+        setTimeout(() => {
           setUploading(false);
           setUploadProgress(0);
-          const result = await statusAPI.getAll().catch(e => ({ error: e.message }));
-          Alert.alert('DEBUG', `create: ${JSON.stringify(createResult?.status?._id || createResult?.error || 'no response')}\nownStatuses: ${result?.ownStatuses?.length ?? result?.error ?? '?'}`);
           fetchStatuses();
         }, 500);
       } catch (err) {
-        console.error('STATUS_DEBUG createImage error:', err.message);
         setUploading(false);
         Alert.alert('Error', err.message || 'Failed to create status');
       }
