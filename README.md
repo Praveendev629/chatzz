@@ -1,25 +1,5 @@
 # Chatzz – Setup & Build Guide
 
-## 📦 What's Changed (v2.0)
-
-| # | Feature | Status |
-|---|---------|--------|
-| 1 | Theme colors now apply instantly app-wide | ✅ Fixed |
-| 2 | Admin panel (5-tap + password `praveen001`) with user delete | ✅ Added |
-| 3 | Offline-first: app loads without internet, no re-login | ✅ Fixed |
-| 4 | Image/document share & in-app preview (tap image to expand) | ✅ Fixed |
-| 5 | Profile photo persists permanently (local cache + Cloudinary) | ✅ Fixed |
-| 6 | Voice messages (hold mic button) | ✅ Working |
-| 7 | Call ringtone, record call, video call switch, screen share | ✅ Added |
-| 8 | No notifications when inside the active chat | ✅ Fixed |
-| 9 | Quick-reply button on notifications (iOS) | ✅ Added |
-| 10 | Video call button in chat header | ✅ Added |
-| 11 | Call push notifications when app is closed | ✅ Fixed |
-| 12 | Cloudinary for profile pictures (backend already configured) | ✅ Working |
-| 13 | Message input stays above keyboard (like WhatsApp) | ✅ Fixed |
-| 14 | Swipe left/right to switch Chats / Calls / Status tabs | ✅ Added |
-
----
 
 ## 🚀 Backend Setup
 
