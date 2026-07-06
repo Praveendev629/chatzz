@@ -192,7 +192,7 @@ const socketHandler = (io) => {
               callerName: socket.user.username,
               callerPic: socket.user.profilePicture || '',
             },
-            android: { channelId: 'chatzz_calls', priority: 'high', ttl: 30000 },
+            android: { channelId: 'chatzz_calls' },
           }).catch((e) => console.warn('Call push error:', e.message));
         }
       } catch (err) {
