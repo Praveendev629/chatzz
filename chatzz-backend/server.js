@@ -13,6 +13,7 @@ const chatRoutes = require('./routes/chat');
 const messageRoutes = require('./routes/message');
 const statusRoutes = require('./routes/status');
 const socketHandler = require('./socket/socketHandler');
+const { cleanupExpiredStatusMedia } = require('./utils/statusCleanup');
 
 const app = express();
 const server = http.createServer(app);
@@ -72,4 +73,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Chatzz server running on port ${PORT}`);
+  // Run expired status media cleanup every hour
+  cleanupExpiredStatusMedia();
+  setInterval(cleanupExpiredStatusMedia, 60 * 60 * 1000);
 });

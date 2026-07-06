@@ -1,5 +1,6 @@
 const Status = require('../models/Status');
 const User = require('../models/User');
+const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 
 // @desc    Create status
 // @route   POST /api/status
@@ -153,6 +154,11 @@ const deleteStatus = async (req, res) => {
 
     if (status.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    // Delete media from Cloudinary before removing the document
+    if (status.mediaUrl) {
+      deleteFromCloudinary(status.mediaUrl).catch(() => {});
     }
 
     await Status.findByIdAndDelete(req.params.id);

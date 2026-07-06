@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Message = require('../models/Message');
 const { sendPushNotification } = require('../config/firebase');
+const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 
 const onlineUsers = new Map(); // userId -> socketId
 const viewingChatMap = new Map(); // userId -> chatId (which chat the user is currently viewing)
@@ -150,6 +151,10 @@ const socketHandler = (io) => {
       if (!message) return;
 
       if (deleteForEveryone && message.sender.toString() === userId) {
+        // Delete file from Cloudinary before clearing the URL
+        if (message.fileUrl) {
+          deleteFromCloudinary(message.fileUrl).catch(() => {});
+        }
         message.deletedForEveryone = true;
         message.content = '';
         message.fileUrl = null;

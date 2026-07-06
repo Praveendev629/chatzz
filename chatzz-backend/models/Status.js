@@ -41,4 +41,28 @@ const statusSchema = new mongoose.Schema(
 statusSchema.index({ user: 1, createdAt: -1 });
 statusSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
+// Clean up Cloudinary media before document is deleted via mongoose
+const cleanupMedia = async function (next) {
+  try {
+    const status = await this.model.findOne(this.getQuery());
+    if (status?.mediaUrl) {
+      const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
+      await deleteFromCloudinary(status.mediaUrl);
+    }
+  } catch (_) {}
+  next();
+};
+
+statusSchema.pre('deleteOne', cleanupMedia);
+statusSchema.pre('deleteMany', async function (next) {
+  try {
+    const statuses = await this.model.find(this.getFilter()).select('mediaUrl');
+    const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
+    for (const s of statuses) {
+      if (s.mediaUrl) await deleteFromCloudinary(s.mediaUrl);
+    }
+  } catch (_) {}
+  next();
+});
+
 module.exports = mongoose.model('Status', statusSchema);

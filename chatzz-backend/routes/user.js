@@ -12,6 +12,7 @@ const {
   unblockUser,
   getChatRequests,
   deleteAccount,
+  deleteCloudinaryFile,
   adminGetAllUsers,
   adminDeleteUser,
 } = require('../controllers/userController');
@@ -21,6 +22,7 @@ router.post('/admin/list', adminGetAllUsers);
 router.delete('/admin/:id', adminDeleteUser);
 
 // Protected user routes
+router.post('/delete-cloudinary', protect, deleteCloudinaryFile);
 router.get('/', protect, getAllUsers);
 router.get('/requests', protect, getChatRequests);
 router.get('/:id', protect, getUserProfile);

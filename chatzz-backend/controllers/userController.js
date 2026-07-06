@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { sendPushNotification } = require('../config/firebase');
+const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 
 // @desc    Get all users (for search)
 // @route   GET /api/users
@@ -70,7 +71,12 @@ const updateProfile = async (req, res) => {
     if (req.body.about !== undefined) updates.about = req.body.about;
     if (req.body.settings) updates.settings = req.body.settings;
 
+    // If uploading a new profile picture, delete the old one from Cloudinary
     if (req.file) {
+      const currentUser = await User.findById(req.user._id);
+      if (currentUser.profilePicture) {
+        deleteFromCloudinary(currentUser.profilePicture).catch(() => {});
+      }
       updates.profilePicture = req.file.path;
     }
 
@@ -329,6 +335,21 @@ const adminDeleteUser = async (req, res) => {
   }
 };
 
+// @desc    Delete a file from Cloudinary by URL
+// @route   POST /api/users/delete-cloudinary
+// @access  Private
+const deleteCloudinaryFile = async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ success: false, message: 'URL is required' });
+    await deleteFromCloudinary(url);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    // Non-critical — don't fail the request
+    res.status(200).json({ success: true });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserProfile,
@@ -339,6 +360,7 @@ module.exports = {
   unblockUser,
   getChatRequests,
   deleteAccount,
+  deleteCloudinaryFile,
   adminGetAllUsers,
   adminDeleteUser,
 };
