@@ -102,8 +102,10 @@ const sendViaFCM = async ({ token, title, body, data = {}, android: androidConfi
           notification: {
             sound: 'notification',
             channelId: channelConfig,
+            click_action: 'OPEN_CHAT',
           },
           priority: 'high',
+          ttl: '86400s',
         },
         apns: {
           payload: {

@@ -103,9 +103,8 @@ const sendMessage = async (req, res) => {
         token: receiver.fcmToken,
         title: req.user.username,
         body: preview,
-        category: 'message_reply',
         data: {
-          type: 'new_message',
+          type: 'message',
           chatId,
           senderId: req.user._id.toString(),
           senderName: req.user.username,
@@ -178,12 +177,17 @@ const quickReply = async (req, res) => {
 
     // Push notification
     if (receiver?.fcmToken) {
-      await sendPushNotification({
+      sendPushNotification({
         token: receiver.fcmToken,
         title: req.user.username,
         body: content.substring(0, 100),
-        data: { type: 'new_message', chatId, senderId: req.user._id.toString() },
-      });
+        data: {
+          type: 'message',
+          chatId,
+          senderId: req.user._id.toString(),
+          senderName: req.user.username,
+        },
+      }).catch(() => {});
     }
 
     res.status(201).json({ success: true, message: populatedMessage });

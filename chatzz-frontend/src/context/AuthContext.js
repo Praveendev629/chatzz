@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
 import * as Application from 'expo-application';
 import * as FileSystem from 'expo-file-system';
+import messaging from '@react-native-firebase/messaging';
 import { authAPI, userAPI } from '../services/api';
 import { registerForPushNotifications } from '../services/notifications';
 import { initSocket, disconnectSocket } from '../services/socket';
@@ -16,6 +17,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isNewUser, setIsNewUser] = useState(false);
+  const _tokenRefreshSubRef = React.useRef(null);
 
   useEffect(() => {
     checkExistingSession();
@@ -47,6 +49,15 @@ export const AuthProvider = ({ children }) => {
           }
           const fcmToken = await registerForPushNotifications();
           if (fcmToken) await authAPI.updateFcmToken(fcmToken);
+
+          // Listen for FCM token rotations (happens on app updates, token expiry, etc.)
+          const tokenSub = messaging().onTokenRefresh(async (newToken) => {
+            try {
+              console.log('Firebase FCM token refreshed:', newToken.substring(0, 40) + '...');
+              await authAPI.updateFcmToken(newToken);
+            } catch (_) {}
+          });
+          _tokenRefreshSubRef.current = tokenSub;
         } catch (_) {}
         return;
       }
@@ -165,6 +176,10 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const deleteAccount = async () => {
+    if (_tokenRefreshSubRef.current) {
+      _tokenRefreshSubRef.current.remove();
+      _tokenRefreshSubRef.current = null;
+    }
     try { await userAPI.deleteAccount(); } catch (err) {
       console.warn('Delete account error:', err.message);
     }
@@ -178,6 +193,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    if (_tokenRefreshSubRef.current) {
+      _tokenRefreshSubRef.current.remove();
+      _tokenRefreshSubRef.current = null;
+    }
     await SecureStore.deleteItemAsync('chatzz_token');
     await SecureStore.deleteItemAsync('chatzz_user');
     disconnectSocket();

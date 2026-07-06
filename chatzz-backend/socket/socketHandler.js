@@ -99,7 +99,8 @@ const socketHandler = (io) => {
           socket.emit('message_delivered', { messageId: message._id });
         }
 
-        // ── Push notification to receiver (skip if viewing this chat) ──
+        // ── Push notification: always attempt (covers killed/background apps) ──
+        // Only skip if receiver is viewing THIS exact chat (foreground suppression)
         const viewingChatId = viewingChatMap.get(receiverId);
         if (viewingChatId !== chatId) {
           const receiver = await User.findById(receiverId).select('fcmToken');
@@ -113,11 +114,16 @@ const socketHandler = (io) => {
                 ? '🎤 sent a voice message'
                 : '📎 sent a file';
 
-            await sendPushNotification({
+            sendPushNotification({
               token: receiver.fcmToken,
               title: socket.user.username,
               body: notifBody,
-              data: { type: 'message', chatId, senderId: userId, senderName: socket.user.username },
+              data: {
+                type: 'message',
+                chatId,
+                senderId: userId,
+                senderName: socket.user.username,
+              },
             }).catch((e) => console.warn('Push notification error:', e.message));
           }
         }
@@ -182,7 +188,7 @@ const socketHandler = (io) => {
       try {
         const receiver = await User.findById(to).select('fcmToken');
         if (receiver?.fcmToken) {
-          await sendPushNotification({
+          sendPushNotification({
             token: receiver.fcmToken,
             title: `📞 Incoming ${callType === 'video' ? 'Video ' : ''}Call`,
             body: `${socket.user.username} is calling you`,
