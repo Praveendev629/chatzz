@@ -99,7 +99,8 @@
         {
           "microphonePermission": "Allow Chatzz to access your microphone for voice messages and calls"
         }
-      ]
+      ],
+      "react-native-webrtc"
     ],
     "extra": {
       "eas": {

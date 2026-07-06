@@ -29,11 +29,12 @@ try {
   console.log('WebRTC not available - calls will show placeholder');
 }
 
-// ICE configuration - minimal for faster connection
+// ICE configuration with TURN server for cross-network connectivity
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
   ],
   iceCandidatePoolSize: 0,
 };
@@ -60,8 +61,8 @@ const CallScreen = ({ route, navigation }) => {
   useEffect(() => {
     if (!RTCPeerConnection) {
       Alert.alert(
-        'Call Feature',
-        'Calls require a development build.\n\nTo enable calls:\n1. Run: npx expo prebuild\n2. Run: npx expo run:android',
+        'Call Feature Unavailable',
+        'WebRTC is not available in this build. Please reinstall the app.',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
       return;
