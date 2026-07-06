@@ -121,6 +121,11 @@ const StatusScreen = ({ navigation }) => {
     } catch (err) {}
   };
 
+  const closeViewer = () => {
+    setViewingStatus(null);
+    fetchStatuses();
+  };
+
   const deleteStatus = async (statusId) => {
     Alert.alert('Delete Status', 'Remove this status?', [
       { text: 'Cancel', style: 'cancel' },
@@ -129,8 +134,8 @@ const StatusScreen = ({ navigation }) => {
         onPress: async () => {
           try {
             await statusAPI.delete(statusId);
-            setStatuses((prev) => prev.filter((s) => s._id !== statusId));
             setViewingStatus(null);
+            fetchStatuses();
           } catch (err) {
             Alert.alert('Error', err.message);
           }
@@ -153,7 +158,7 @@ const StatusScreen = ({ navigation }) => {
       acc[userId] = { user: status.user, statuses: [], hasUnviewed: false };
     }
     acc[userId].statuses.push(status);
-    if (!status.viewedBy?.includes(user._id)) {
+    if (!status.views?.some(v => (v.user?._id || v.user) === user._id)) {
       acc[userId].hasUnviewed = true;
     }
     return acc;
@@ -337,7 +342,7 @@ const StatusScreen = ({ navigation }) => {
         <View style={styles.viewOverlay}>
           {viewingStatus && (
             <>
-              <TouchableOpacity style={styles.viewClose} onPress={() => setViewingStatus(null)}>
+              <TouchableOpacity style={styles.viewClose} onPress={closeViewer}>
                 <Ionicons name="close" size={30} color="#fff" />
               </TouchableOpacity>
 
@@ -402,7 +407,7 @@ const StatusScreen = ({ navigation }) => {
               <View style={styles.viewedByContainer}>
                 <Ionicons name="eye" size={16} color="#9E9E9E" />
                 <Text style={styles.viewedByText}>
-                  Viewed by {viewingStatus.viewedBy?.length || 0}
+                  Viewed by {viewingStatus.views?.length || 0}
                 </Text>
               </View>
             </>

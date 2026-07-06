@@ -76,7 +76,7 @@ export const statusAPI = {
   getAll: () => api.get('/status'),
   getUserStatuses: (userId) => api.get(`/status/user/${userId}`),
   create: (formData) => api.post('/status', formData),
-  view: (statusId) => api.put(`/status/${statusId}/view`),
+  view: (statusId) => api.post(`/status/${statusId}/view`),
   delete: (statusId) => api.delete(`/status/${statusId}`),
 };
 
