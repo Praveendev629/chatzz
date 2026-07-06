@@ -100,9 +100,9 @@ const socketHandler = (io) => {
           socket.emit('message_delivered', { messageId: message._id });
         }
 
-        // ── Push notification to receiver (skip if viewing this chat) ──
-        const viewingChatId = viewingChatMap.get(receiverId);
-        if (viewingChatId !== chatId) {
+        // ── Push notification: only when receiver is OFFLINE (no socket) ──
+        // Skip if online — socket delivery already handles it, avoids double notifications
+        if (!receiverOnline) {
           const receiver = await User.findById(receiverId).select('fcmToken');
           if (receiver?.fcmToken) {
             const notifBody =

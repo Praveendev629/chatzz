@@ -34,6 +34,7 @@ const sendPushNotification = async ({ token, title, body, data = {} }) => {
         notification: {
           sound: 'notification',
           channelId: 'chatzz_messages',
+          icon: 'notification_icon',
           priority: 'high',
         },
         priority: 'high',
