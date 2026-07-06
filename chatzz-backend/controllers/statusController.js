@@ -33,6 +33,7 @@ const createStatus = async (req, res) => {
       backgroundColor: backgroundColor || '#E53935',
       expiresAt,
     });
+    console.log(`Status created: ${status._id}, mediaType: ${mediaType}, mediaUrl: ${mediaUrl || 'none'}`);
 
     const populated = await Status.findById(status._id).populate('user', '_id username profilePicture');
 
@@ -87,7 +88,7 @@ const getStatuses = async (req, res) => {
     const ownStatuses = await Status.find({
       user: req.user._id,
       expiresAt: { $gt: new Date() },
-    }).sort({ createdAt: -1 });
+    }).populate('user', '_id username profilePicture').sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,

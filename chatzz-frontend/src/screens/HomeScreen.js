@@ -198,8 +198,9 @@ const HomeScreen = ({ navigation }) => {
         fetchStatuses();
       }, 500);
     } catch (err) {
+      console.error('Text status error:', err);
       setUploading(false);
-      Alert.alert('Error', 'Failed to create status');
+      Alert.alert('Error', err.message || 'Failed to create status');
     }
   };
 
@@ -240,7 +241,7 @@ const HomeScreen = ({ navigation }) => {
         }, 500);
       } catch (err) {
         setUploading(false);
-        Alert.alert('Error', 'Failed to create status');
+        Alert.alert('Error', err.message || 'Failed to create status');
       }
     }
   };
@@ -283,7 +284,7 @@ const HomeScreen = ({ navigation }) => {
         }, 500);
       } catch (err) {
         setUploading(false);
-        Alert.alert('Error', 'Failed to create status');
+        Alert.alert('Error', err.message || 'Failed to create status');
       }
     }
   };
