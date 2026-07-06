@@ -1,6 +1,5 @@
 const User = require('../models/User');
 const { sendPushNotification } = require('../config/firebase');
-const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 
 // @desc    Get all users (for search)
 // @route   GET /api/users
@@ -72,11 +71,6 @@ const updateProfile = async (req, res) => {
     if (req.body.settings) updates.settings = req.body.settings;
 
     if (req.file) {
-      // Delete old profile picture from Cloudinary
-      const currentUser = await User.findById(req.user._id);
-      if (currentUser.profilePicture) {
-        await deleteFromCloudinary(currentUser.profilePicture);
-      }
       updates.profilePicture = req.file.path;
     }
 
@@ -273,11 +267,7 @@ const deleteAccount = async (req, res) => {
       }
     }
 
-    // Delete messages and their media from Cloudinary
-    const messages = await Message.find({ chatId: { $in: chatIds }, fileUrl: { $ne: null } }).lean();
-    for (const msg of messages) {
-      await deleteFromCloudinary(msg.fileUrl);
-    }
+    // Delete messages
     await Message.deleteMany({ chatId: { $in: chatIds } });
     // Delete chats
     await Chat.deleteMany({ participants: userId });
@@ -330,29 +320,10 @@ const adminDeleteUser = async (req, res) => {
         }
       }
     }
-    const adminMessages = await Message.find({ chatId: { $in: chatIds }, fileUrl: { $ne: null } }).lean();
-    for (const msg of adminMessages) {
-      await deleteFromCloudinary(msg.fileUrl);
-    }
     await Message.deleteMany({ chatId: { $in: chatIds } });
     await Chat.deleteMany({ participants: userId });
     await User.findByIdAndDelete(userId);
     res.status(200).json({ success: true, message: 'User deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// @desc    Delete a Cloudinary file after client has cached it locally
-// @route   POST /api/users/delete-cloudinary
-// @access  Private
-const deleteCachedMedia = async (req, res) => {
-  try {
-    const { url } = req.body;
-    if (!url) return res.status(400).json({ success: false, message: 'URL required' });
-
-    await deleteFromCloudinary(url);
-    res.status(200).json({ success: true, message: 'File deleted from Cloudinary' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -370,5 +341,4 @@ module.exports = {
   deleteAccount,
   adminGetAllUsers,
   adminDeleteUser,
-  deleteCachedMedia,
 };

@@ -1,9 +1,9 @@
 import * as Notifications from 'expo-notifications';
-import messaging from '@react-native-firebase/messaging';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { getActiveChatId } from '../utils/activeChat';
 
+// Quick-reply action for message notifications
 const MESSAGE_CATEGORY = 'message_reply';
 const CALL_CATEGORY = 'call';
 
@@ -13,30 +13,37 @@ export const registerForPushNotifications = async () => {
     return null;
   }
 
-  // Request permission (Android 13+ needs this)
-  if (Platform.OS === 'android') {
-    const authStatus = await messaging().requestPermission();
-    const enabled =
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-    if (!enabled) {
-      console.warn('Firebase messaging permission denied');
-      return null;
-    }
-  } else {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-    if (finalStatus !== 'granted') {
-      console.warn('Push notification permission denied');
-      return null;
-    }
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
   }
 
-  // Setup Android notification channels
+  if (finalStatus !== 'granted') {
+    console.warn('Push notification permission denied');
+    return null;
+  }
+
+  // Register notification categories for quick actions (iOS)
+  if (Platform.OS === 'ios') {
+    await Notifications.setNotificationCategoryAsync(MESSAGE_CATEGORY, [
+      {
+        identifier: 'reply',
+        buttonTitle: 'Reply',
+        textInput: { submitButtonTitle: 'Send', placeholder: 'Type a reply...' },
+        options: { isDestructive: false, isAuthenticationRequired: false },
+      },
+    ]);
+
+    await Notifications.setNotificationCategoryAsync(CALL_CATEGORY, [
+      { identifier: 'answer', buttonTitle: '✅ Answer', options: { opensAppToForeground: true } },
+      { identifier: 'decline', buttonTitle: '❌ Decline', options: { isDestructive: true, opensAppToForeground: false } },
+    ]);
+  }
+
+  // Register notification categories with actions for Android
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('chatzz_messages', {
       name: 'Chatzz Messages',
@@ -57,16 +64,17 @@ export const registerForPushNotifications = async () => {
       enableVibrate: true,
       bypassDnd: true,
     });
-  }
 
-  // Setup iOS notification categories
-  if (Platform.OS === 'ios') {
+    // Set up Android notification categories with reply action
     await Notifications.setNotificationCategoryAsync(MESSAGE_CATEGORY, [
       {
         identifier: 'reply',
         buttonTitle: 'Reply',
-        textInput: { submitButtonTitle: 'Send', placeholder: 'Type a reply...' },
-        options: { isDestructive: false, isAuthenticationRequired: false },
+        textInput: {
+          placeholder: 'Type a message...',
+          submitButtonTitle: 'Send',
+        },
+        options: { isDestructive: false, opensAppToForeground: false },
       },
     ]);
 
@@ -76,15 +84,11 @@ export const registerForPushNotifications = async () => {
     ]);
   }
 
-  // Get FCM token directly from Firebase (no refresh handler needed)
   try {
-    const token = await messaging().getToken();
-    console.log('Firebase FCM token obtained:', token.substring(0, 40) + '...');
+    // Use native FCM token for direct Firebase delivery (bypasses Expo push infra)
+    const token = (await Notifications.getDevicePushTokenAsync()).data;
     return token;
-  } catch (err) {
-    console.error('Failed to get Firebase FCM token:', err.message);
-    return null;
-  }
+  } catch { return null; }
 };
 
 export const addNotificationListener = (callback) => {

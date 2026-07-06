@@ -2,7 +2,6 @@ const Message = require('../models/Message');
 const Chat = require('../models/Chat');
 const User = require('../models/User');
 const { sendPushNotification } = require('../config/firebase');
-const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 
 // @desc    Get messages for a chat
 // @route   GET /api/messages/:chatId
@@ -104,7 +103,7 @@ const sendMessage = async (req, res) => {
         title: req.user.username,
         body: preview,
         data: {
-          type: 'message',
+          type: 'new_message',
           chatId,
           senderId: req.user._id.toString(),
           senderName: req.user.username,
@@ -177,17 +176,12 @@ const quickReply = async (req, res) => {
 
     // Push notification
     if (receiver?.fcmToken) {
-      sendPushNotification({
+      await sendPushNotification({
         token: receiver.fcmToken,
         title: req.user.username,
         body: content.substring(0, 100),
-        data: {
-          type: 'message',
-          chatId,
-          senderId: req.user._id.toString(),
-          senderName: req.user.username,
-        },
-      }).catch(() => {});
+        data: { type: 'new_message', chatId, senderId: req.user._id.toString() },
+      });
     }
 
     res.status(201).json({ success: true, message: populatedMessage });
@@ -207,10 +201,6 @@ const deleteMessage = async (req, res) => {
     if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
 
     if (deleteForEveryone && message.sender.toString() === req.user._id.toString()) {
-      // Delete file from Cloudinary
-      if (message.fileUrl) {
-        await deleteFromCloudinary(message.fileUrl);
-      }
       message.deletedForEveryone = true;
       message.content = '';
       message.fileUrl = null;

@@ -68,22 +68,14 @@ const AppNavigator = ({ navigationRef }) => {
       // Handle quick reply from notification
       if (action === 'reply' && data?.chatId && data?.senderId) {
         const replyText = response.userInput;
+        // Skip empty, placeholder, or button title text
         const placeholderTexts = ['Type a reply...', 'Type a message...', 'Reply', 'Send'];
         if (replyText && replyText.trim() && !placeholderTexts.includes(replyText.trim())) {
           messageAPI.quickReply(data.chatId, data.senderId, replyText.trim()).catch(() => {});
         }
       }
 
-      // Handle call notification tap
-      if (data?.type === 'call' && data?.callerId && navigationRef?.current) {
-        navigationRef.current.navigate('Call', {
-          participant: { _id: data.callerId, username: data.callerName, profilePicture: data.callerPic },
-          isIncoming: true,
-        });
-        return;
-      }
-
-      // Navigate to chat when message notification is tapped
+      // Navigate to chat when notification is tapped
       if (data?.type === 'message' && data?.chatId && navigationRef?.current) {
         navigationRef.current.navigate('Chat', {
           chatId: data.chatId,

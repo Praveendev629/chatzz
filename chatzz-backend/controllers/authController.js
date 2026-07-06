@@ -80,7 +80,6 @@ const checkDevice = async (req, res) => {
 const updateFcmToken = async (req, res) => {
   try {
     const { fcmToken } = req.body;
-    console.log(`Updating push token for user ${req.user._id}: ${fcmToken?.substring(0, 40)}...`);
     await User.findByIdAndUpdate(req.user._id, { fcmToken });
     res.status(200).json({ success: true, message: 'FCM token updated' });
   } catch (error) {

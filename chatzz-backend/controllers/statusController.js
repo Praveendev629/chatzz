@@ -1,6 +1,5 @@
 const Status = require('../models/Status');
 const User = require('../models/User');
-const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 
 // @desc    Create status
 // @route   POST /api/status
@@ -156,11 +155,6 @@ const deleteStatus = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized' });
     }
 
-    // Delete media from Cloudinary to free space
-    if (status.mediaUrl) {
-      await deleteFromCloudinary(status.mediaUrl);
-    }
-
     await Status.findByIdAndDelete(req.params.id);
     res.status(200).json({ success: true, message: 'Status deleted' });
   } catch (error) {
@@ -168,32 +162,4 @@ const deleteStatus = async (req, res) => {
   }
 };
 
-// @desc    Cleanup expired statuses from Cloudinary
-// @route   POST /api/status/cleanup
-// @access  Private (admin)
-const cleanupExpiredStatuses = async (req, res) => {
-  try {
-    const expiredStatuses = await Status.find({
-      expiresAt: { $lte: new Date() },
-      mediaUrl: { $ne: null },
-    }).lean();
-
-    for (const status of expiredStatuses) {
-      await deleteFromCloudinary(status.mediaUrl);
-    }
-
-    const deleted = await Status.deleteMany({
-      expiresAt: { $lte: new Date() },
-    });
-
-    res.status(200).json({
-      success: true,
-      message: `Cleaned ${expiredStatuses.length} expired status media files`,
-      deletedCount: deleted.deletedCount,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-module.exports = { createStatus, getStatuses, viewStatus, getStatusViewers, deleteStatus, cleanupExpiredStatuses };
+module.exports = { createStatus, getStatuses, viewStatus, getStatusViewers, deleteStatus };

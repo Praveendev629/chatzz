@@ -99,15 +99,6 @@
         {
           "microphonePermission": "Allow Chatzz to access your microphone for voice messages and calls"
         }
-      ],
-      [
-        "@react-native-firebase/app",
-        {
-          "googleServicesFile": "./google-services.json"
-        }
-      ],
-      [
-        "@react-native-firebase/messaging"
       ]
     ],
     "extra": {

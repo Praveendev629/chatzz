@@ -68,20 +68,7 @@ const handleNotificationResponse = (response) => {
     }
   }
 
-  // Handle call notification tap (app was killed)
-  if (data?.type === 'call' && data?.callerId && navigationRef.current) {
-    setTimeout(() => {
-      try {
-        navigationRef.current.navigate('Call', {
-          participant: { _id: data.callerId, username: data.callerName, profilePicture: data.callerPic },
-          isIncoming: true,
-        });
-      } catch (_) {}
-    }, 800);
-    return;
-  }
-
-  // Navigate to chat for message notifications
+  // Navigate to chat
   if (data?.chatId && navigationRef.current) {
     setTimeout(() => {
       try {
