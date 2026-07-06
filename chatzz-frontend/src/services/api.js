@@ -31,8 +31,7 @@ api.interceptors.response.use(
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 export const authAPI = {
-  register: (formData) =>
-    api.post('/auth/register', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  register: (formData) => api.post('/auth/register', formData),
   checkDevice: (deviceId) => api.post('/auth/check-device', { deviceId }),
   updateFcmToken: (fcmToken) => api.put('/auth/fcm-token', { fcmToken }),
 };
@@ -41,8 +40,7 @@ export const authAPI = {
 export const userAPI = {
   getAll: (search = '') => api.get(`/users?search=${search}`),
   getProfile: (id) => api.get(`/users/${id}`),
-  updateProfile: (formData) =>
-    api.put('/users/profile', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  updateProfile: (formData) => api.put('/users/profile', formData),
   sendRequest: (userId) => api.post(`/users/${userId}/request`),
   respondRequest: (userId, action) => api.put(`/users/request/${userId}/respond`, { action }),
   blockUser: (userId) => api.post(`/users/${userId}/block`),
@@ -65,8 +63,7 @@ export const chatAPI = {
 // ─── Messages ────────────────────────────────────────────────────────────────
 export const messageAPI = {
   getMessages: (chatId, page = 1) => api.get(`/messages/${chatId}?page=${page}&limit=50`),
-  send: (formData) =>
-    api.post('/messages', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  send: (formData) => api.post('/messages', formData),
   quickReply: (chatId, receiverId, content) =>
     api.post('/messages/reply', { chatId, receiverId, content }),
   markSeen: (chatId) => api.put(`/messages/${chatId}/seen`),
@@ -78,8 +75,7 @@ export const messageAPI = {
 export const statusAPI = {
   getAll: () => api.get('/status'),
   getUserStatuses: (userId) => api.get(`/status/user/${userId}`),
-  create: (formData) =>
-    api.post('/status', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  create: (formData) => api.post('/status', formData),
   view: (statusId) => api.put(`/status/${statusId}/view`),
   delete: (statusId) => api.delete(`/status/${statusId}`),
 };
