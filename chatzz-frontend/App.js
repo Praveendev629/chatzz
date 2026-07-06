@@ -17,12 +17,14 @@ import { messageAPI } from './src/services/api';
 import { getActiveChatId } from './src/utils/activeChat';
 
 // Configure how notifications display in foreground
-// Always suppress — the socket handler in HomeScreen already shows a local
-// notification via scheduleLocalNotification, so letting FCM through would
-// produce a duplicate banner.
 Notifications.setNotificationHandler({
-  handleNotification: async () => {
-    return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+  handleNotification: async (notification) => {
+    const chatId = notification?.request?.content?.data?.chatId;
+    const activeChatId = getActiveChatId();
+    if (chatId && activeChatId && chatId === activeChatId) {
+      return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+    }
+    return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true };
   },
 });
 

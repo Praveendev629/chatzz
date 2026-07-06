@@ -11,8 +11,6 @@ import { chatAPI, userAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useTheme } from '../context/ThemeContext';
-import { scheduleLocalNotification } from '../services/notifications';
-import { getActiveChatId } from '../utils/activeChat';
 import { chatCache } from '../utils/chatCache';
 import ChatListItem from '../components/ChatListItem';
 import { Spacing } from '../theme';
@@ -67,26 +65,6 @@ const HomeScreen = ({ navigation }) => {
         }
         return c;
       }).sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt)));
-
-      // Only notify if this chat is NOT currently open
-      const activeChatId = getActiveChatId();
-      if (message.chatId !== activeChatId) {
-        const senderName = message.sender?.username || 'Someone';
-        const body =
-          message.messageType === 'text' ? message.content :
-          message.messageType === 'image' ? '📷 Image' :
-          message.messageType === 'audio' ? '🎤 Voice message' : '📎 File';
-        scheduleLocalNotification({
-          title: senderName,
-          body,
-          data: {
-            type: 'message',
-            chatId: message.chatId,
-            senderId: message.sender?._id,
-            senderName,
-          },
-        });
-      }
     };
 
     const handleChatRequest = (data) => {
