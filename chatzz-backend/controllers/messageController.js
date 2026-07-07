@@ -32,15 +32,15 @@ const getMessages = async (req, res) => {
 // @access  Private
 const sendMessage = async (req, res) => {
   try {
-    const { chatId, receiverId, messageType = 'text', content, replyTo } = req.body;
+    const { chatId, receiverId, messageType = 'text', content, replyTo, fileUrl: directFileUrl, fileName: directFileName } = req.body;
 
-    let fileUrl = null;
-    let fileName = null;
+    let fileUrl = directFileUrl || null;
+    let fileName = directFileName || null;
     let fileSize = null;
     let replyToContent = null;
     let replyToSender = null;
 
-    if (req.file) {
+    if (!fileUrl && req.file) {
       fileUrl = req.file.path;
       fileName = req.file.originalname;
       fileSize = req.file.size;

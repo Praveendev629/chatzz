@@ -40,7 +40,7 @@ export const authAPI = {
 export const userAPI = {
   getAll: (search = '') => api.get(`/users?search=${search}`),
   getProfile: (id) => api.get(`/users/${id}`),
-  updateProfile: (formData) => api.put('/users/profile', formData),
+  updateProfile: (data) => api.put('/users/profile', data),
   sendRequest: (userId) => api.post(`/users/${userId}/request`),
   respondRequest: (userId, action) => api.put(`/users/request/${userId}/respond`, { action }),
   blockUser: (userId) => api.post(`/users/${userId}/block`),
@@ -63,7 +63,7 @@ export const chatAPI = {
 // ─── Messages ────────────────────────────────────────────────────────────────
 export const messageAPI = {
   getMessages: (chatId, page = 1) => api.get(`/messages/${chatId}?page=${page}&limit=50`),
-  send: (formData) => api.post('/messages', formData),
+  send: (data) => api.post('/messages', data),
   quickReply: (chatId, receiverId, content) =>
     api.post('/messages/reply', { chatId, receiverId, content }),
   markSeen: (chatId) => api.put(`/messages/${chatId}/seen`),
@@ -75,7 +75,7 @@ export const messageAPI = {
 export const statusAPI = {
   getAll: () => api.get('/status'),
   getUserStatuses: (userId) => api.get(`/status/user/${userId}`),
-  create: (formData) => api.post('/status', formData),
+  create: (data) => api.post('/status', data),
   view: (statusId) => api.post(`/status/${statusId}/view`),
   delete: (statusId) => api.delete(`/status/${statusId}`),
 };

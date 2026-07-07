@@ -100,9 +100,7 @@ const SettingsScreen = ({ navigation }) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     try {
-      const formData = new FormData();
-      formData.append('settings', JSON.stringify(newSettings));
-      const result = await userAPI.updateProfile(formData);
+      const result = await userAPI.updateProfile({ settings: newSettings });
       if (result?.user) updateUser({ settings: newSettings });
     } catch (err) {
       Alert.alert('Error', 'Failed to save setting');
@@ -115,9 +113,7 @@ const SettingsScreen = ({ navigation }) => {
     const newSettings = { ...settings, theme: id };
     setSettings(newSettings);
     try {
-      const formData = new FormData();
-      formData.append('settings', JSON.stringify(newSettings));
-      await userAPI.updateProfile(formData);
+      await userAPI.updateProfile({ settings: newSettings });
       updateUser({ settings: newSettings });
     } catch (_) {}
   };

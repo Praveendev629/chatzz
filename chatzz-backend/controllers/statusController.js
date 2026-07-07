@@ -7,10 +7,10 @@ const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 // @access  Private
 const createStatus = async (req, res) => {
   try {
-    const { mediaType, content, backgroundColor } = req.body;
+    const { mediaType, content, backgroundColor, mediaUrl: directMediaUrl } = req.body;
 
-    let mediaUrl = null;
-    if (req.file) {
+    let mediaUrl = directMediaUrl || null;
+    if (!mediaUrl && req.file) {
       mediaUrl = req.file.path;
     }
 

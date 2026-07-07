@@ -12,6 +12,7 @@ const userRoutes = require('./routes/user');
 const chatRoutes = require('./routes/chat');
 const messageRoutes = require('./routes/message');
 const statusRoutes = require('./routes/status');
+const uploadRoutes = require('./routes/upload');
 const socketHandler = require('./socket/socketHandler');
 const { cleanupExpiredStatusMedia } = require('./utils/statusCleanup');
 
@@ -44,6 +45,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/status', statusRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'OK', app: 'Chatzz Backend' }));

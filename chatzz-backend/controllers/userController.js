@@ -72,7 +72,13 @@ const updateProfile = async (req, res) => {
     if (req.body.settings) updates.settings = req.body.settings;
 
     // If uploading a new profile picture, delete the old one from Cloudinary
-    if (req.file) {
+    if (req.body.profilePictureUrl) {
+      const currentUser = await User.findById(req.user._id);
+      if (currentUser.profilePicture) {
+        deleteFromCloudinary(currentUser.profilePicture).catch(() => {});
+      }
+      updates.profilePicture = req.body.profilePictureUrl;
+    } else if (req.file) {
       const currentUser = await User.findById(req.user._id);
       if (currentUser.profilePicture) {
         deleteFromCloudinary(currentUser.profilePicture).catch(() => {});

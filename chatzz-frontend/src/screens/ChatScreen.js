@@ -10,6 +10,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { messageAPI } from '../services/api';
+import { uploadToCloudinary } from '../utils/cloudinary';
 import { getSocket, emitSendMessage, emitTyping, emitStopTyping, emitMarkSeen, emitViewingChat } from '../services/socket';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -25,7 +26,7 @@ const { width } = Dimensions.get('window');
 
 const ChatScreen = ({ route, navigation }) => {
   const { chatId, participant } = route.params;
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { on, off } = useSocket();
   const { colors: C } = useTheme();
   const insets = useSafeAreaInsets();
@@ -223,13 +224,10 @@ const ChatScreen = ({ route, navigation }) => {
     });
     if (!result.canceled) {
       const file = result.assets[0];
-      const formData = new FormData();
-      formData.append('chatId', chatId);
-      formData.append('receiverId', participant._id);
-      formData.append('messageType', 'image');
-      formData.append('file', { uri: file.uri, name: file.uri.split('/').pop(), type: 'image/jpeg' });
       try {
-        const res = await messageAPI.send(formData);
+        const fileUrl = await uploadToCloudinary(file.uri, 'chatzz/messages', token);
+        const fileName = file.uri.split('/').pop();
+        const res = await messageAPI.send({ chatId, receiverId: participant._id, messageType: 'image', fileUrl, fileName });
         setMessages((prev) => [...prev, res.message]);
         scrollToBottom();
       } catch (err) { Alert.alert('Error', 'Failed to send image: ' + err.message); }
@@ -243,13 +241,9 @@ const ChatScreen = ({ route, navigation }) => {
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (!result.canceled) {
       const file = result.assets[0];
-      const formData = new FormData();
-      formData.append('chatId', chatId);
-      formData.append('receiverId', participant._id);
-      formData.append('messageType', 'image');
-      formData.append('file', { uri: file.uri, name: 'photo.jpg', type: 'image/jpeg' });
       try {
-        const res = await messageAPI.send(formData);
+        const fileUrl = await uploadToCloudinary(file.uri, 'chatzz/messages', token);
+        const res = await messageAPI.send({ chatId, receiverId: participant._id, messageType: 'image', fileUrl, fileName: 'photo.jpg' });
         setMessages((prev) => [...prev, res.message]);
         scrollToBottom();
       } catch (err) { Alert.alert('Error', 'Failed to send photo'); }
@@ -261,13 +255,9 @@ const ChatScreen = ({ route, navigation }) => {
     const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
     if (result.canceled) return;
     const file = result.assets[0];
-    const formData = new FormData();
-    formData.append('chatId', chatId);
-    formData.append('receiverId', participant._id);
-    formData.append('messageType', 'document');
-    formData.append('file', { uri: file.uri, name: file.name, type: file.mimeType || 'application/octet-stream' });
     try {
-      const res = await messageAPI.send(formData);
+      const fileUrl = await uploadToCloudinary(file.uri, 'chatzz/messages', token);
+      const res = await messageAPI.send({ chatId, receiverId: participant._id, messageType: 'document', fileUrl, fileName: file.name });
       setMessages((prev) => [...prev, res.message]);
       scrollToBottom();
     } catch (err) { Alert.alert('Error', 'Failed to send document'); }
@@ -312,12 +302,8 @@ const ChatScreen = ({ route, navigation }) => {
         fileName = `voice_${Date.now()}.ogg`;
       }
 
-      const formData = new FormData();
-      formData.append('chatId', chatId);
-      formData.append('receiverId', participant._id);
-      formData.append('messageType', 'audio');
-      formData.append('file', { uri, name: fileName, type: fileType });
-      const res = await messageAPI.send(formData);
+      const fileUrl = await uploadToCloudinary(uri, 'chatzz/messages', token);
+      const res = await messageAPI.send({ chatId, receiverId: participant._id, messageType: 'audio', fileUrl, fileName });
       setMessages((prev) => [...prev, res.message]);
       scrollToBottom();
     } catch (err) {

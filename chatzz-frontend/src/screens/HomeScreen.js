@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { chatAPI, userAPI, statusAPI } from '../services/api';
+import { uploadToCloudinary } from '../utils/cloudinary';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useTheme } from '../context/ThemeContext';
@@ -19,7 +20,7 @@ const { width } = Dimensions.get('window');
 const TABS = ['Chats', 'Find People', 'Status'];
 
 const HomeScreen = ({ navigation }) => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { on, off } = useSocket();
   const { colors: C } = useTheme();
 
@@ -169,38 +170,17 @@ const HomeScreen = ({ navigation }) => {
     if (!statusText.trim()) return;
     try {
       setUploading(true);
+      setUploadProgress(100);
+      await statusAPI.create({ mediaType: 'text', content: statusText, backgroundColor: statusBgColor });
+      setShowCreateStatus(false);
+      setStatusText('');
+      setUploading(false);
       setUploadProgress(0);
-      const formData = new FormData();
-      formData.append('mediaType', 'text');
-      formData.append('content', statusText);
-      formData.append('backgroundColor', statusBgColor);
-
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 100);
-
-        await statusAPI.create(formData);
-
-        clearInterval(progressInterval);
-        setUploadProgress(100);
-        setTimeout(() => {
-          setShowCreateStatus(false);
-          setStatusText('');
-          setUploading(false);
-          setUploadProgress(0);
-          fetchStatuses();
-        }, 500);
-      } catch (err) {
-        setUploading(false);
-        Alert.alert('Error', err.message || 'Failed to create status');
-      }
+      fetchStatuses();
+    } catch (err) {
+      setUploading(false);
+      Alert.alert('Error', err.message || 'Failed to create status');
+    }
   };
 
   const createImageStatus = async () => {
@@ -215,23 +195,8 @@ const HomeScreen = ({ navigation }) => {
         setUploading(true);
         setUploadProgress(0);
         const file = result.assets[0];
-        const formData = new FormData();
-        formData.append('mediaType', 'image');
-        formData.append('media', { uri: file.uri, name: 'status.jpg', type: 'image/jpeg' });
-
-        const progressInterval = setInterval(() => {
-          setUploadProgress(prev => {
-            if (prev >= 90) {
-              clearInterval(progressInterval);
-              return 90;
-            }
-            return prev + 5;
-          });
-        }, 200);
-
-        await statusAPI.create(formData);
-
-        clearInterval(progressInterval);
+        const mediaUrl = await uploadToCloudinary(file.uri, 'chatzz/statuses', token, (pct) => setUploadProgress(pct));
+        await statusAPI.create({ mediaType: 'image', mediaUrl });
         setUploadProgress(100);
         setTimeout(() => {
           setUploading(false);
@@ -258,23 +223,8 @@ const HomeScreen = ({ navigation }) => {
         setUploading(true);
         setUploadProgress(0);
         const file = result.assets[0];
-        const formData = new FormData();
-        formData.append('mediaType', 'video');
-        formData.append('media', { uri: file.uri, name: 'status.mp4', type: 'video/mp4' });
-
-        const progressInterval = setInterval(() => {
-          setUploadProgress(prev => {
-            if (prev >= 90) {
-              clearInterval(progressInterval);
-              return 90;
-            }
-            return prev + 3;
-          });
-        }, 300);
-
-        await statusAPI.create(formData);
-
-        clearInterval(progressInterval);
+        const mediaUrl = await uploadToCloudinary(file.uri, 'chatzz/statuses', token, (pct) => setUploadProgress(pct));
+        await statusAPI.create({ mediaType: 'video', mediaUrl });
         setUploadProgress(100);
         setTimeout(() => {
           setUploading(false);

@@ -6,12 +6,13 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { userAPI } from '../services/api';
+import { uploadToCloudinary } from '../utils/cloudinary';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Spacing, BorderRadius } from '../theme';
 
 const ProfileScreen = ({ navigation }) => {
-  const { user, updateUser, logout } = useAuth();
+  const { user, updateUser, logout, token } = useAuth();
   const { colors: C } = useTheme();
   const [editing, setEditing] = useState(false);
   const [username, setUsername] = useState(user?.username || '');
@@ -56,25 +57,20 @@ const ProfileScreen = ({ navigation }) => {
     if (!username.trim()) { Alert.alert('Error', 'Username is required'); return; }
     setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('username', username.trim());
-      formData.append('about', about.trim());
+      const payload = { username: username.trim(), about: about.trim() };
 
       if (profilePic && profilePic !== user.profilePicture) {
-        const filename = profilePic.split('/').pop();
-        const ext = filename.split('.').pop().toLowerCase();
-        const type = ['jpg', 'jpeg'].includes(ext) ? 'image/jpeg' : ext === 'png' ? 'image/png' : 'image/jpeg';
-        formData.append('profilePicture', { uri: profilePic, name: filename, type });
+        const profilePictureUrl = await uploadToCloudinary(profilePic, 'chatzz/profiles', token);
+        payload.profilePictureUrl = profilePictureUrl;
       }
 
-      const result = await userAPI.updateProfile(formData);
-      // updateUser persists locally + to server
+      const result = await userAPI.updateProfile(payload);
       await updateUser({
         ...result.user,
         profilePicture: result.user?.profilePicture || profilePic,
       });
       setEditing(false);
-      Alert.alert('✅ Saved', 'Profile updated successfully!');
+      Alert.alert('Saved', 'Profile updated successfully!');
     } catch (err) {
       Alert.alert('Error', err.message);
     } finally {

@@ -7,6 +7,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { statusAPI } from '../services/api';
+import { uploadToCloudinary } from '../utils/cloudinary';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Spacing, BorderRadius } from '../theme';
@@ -14,7 +15,7 @@ import { Spacing, BorderRadius } from '../theme';
 const { width, height } = Dimensions.get('window');
 
 const StatusScreen = ({ navigation }) => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { colors: C } = useTheme();
   const [statuses, setStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,23 +86,14 @@ const StatusScreen = ({ navigation }) => {
     }
     setPosting(true);
     try {
-      const formData = new FormData();
-      formData.append('content', statusText.trim());
-      formData.append('mediaType', statusMediaType || (statusText.trim() && !statusMedia ? 'text' : 'image'));
+      const mediaType = statusMediaType || (statusText.trim() && !statusMedia ? 'text' : 'image');
+      let mediaUrl = null;
 
       if (statusMedia) {
-        const filename = statusMedia.split('/').pop();
-        const ext = filename.split('.').pop().toLowerCase();
-        let mimeType = 'image/jpeg';
-        if (statusMediaType === 'video' || ['mp4', 'mov', 'avi', 'webm'].includes(ext)) {
-          mimeType = ext === 'mov' ? 'video/quicktime' : `video/${ext}`;
-        } else if (ext === 'png') {
-          mimeType = 'image/png';
-        }
-        formData.append('media', { uri: statusMedia, name: filename, type: mimeType });
+        mediaUrl = await uploadToCloudinary(statusMedia, 'chatzz/statuses', token);
       }
 
-      await statusAPI.create(formData);
+      await statusAPI.create({ content: statusText.trim(), mediaType, mediaUrl });
       setShowCreate(false);
       setStatusText('');
       setStatusMedia(null);
