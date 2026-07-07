@@ -4,6 +4,7 @@ import * as Device from 'expo-device';
 import * as Application from 'expo-application';
 import * as FileSystem from 'expo-file-system';
 import { authAPI, userAPI } from '../services/api';
+import { uploadToCloudinary } from '../utils/cloudinary';
 import { registerForPushNotifications } from '../services/notifications';
 import { initSocket, disconnectSocket } from '../services/socket';
 
@@ -133,20 +134,18 @@ export const AuthProvider = ({ children }) => {
     const deviceId = await getDeviceId();
     const fcmToken = await registerForPushNotifications();
 
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('deviceId', deviceId);
-    if (fcmToken) formData.append('fcmToken', fcmToken);
-
+    let profilePictureUrl = null;
     if (profilePictureUri) {
-      const filename = profilePictureUri.split('/').pop();
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
-      formData.append('profilePicture', { uri: profilePictureUri, name: filename, type });
+      const cachedToken = await SecureStore.getItemAsync('chatzz_token');
+      profilePictureUrl = await uploadToCloudinary(profilePictureUri, 'chatzz/profiles', cachedToken || 'pending');
       await saveLocalProfilePic(profilePictureUri);
     }
 
-    const result = await authAPI.register(formData);
+    const payload = { username, deviceId };
+    if (fcmToken) payload.fcmToken = fcmToken;
+    if (profilePictureUrl) payload.profilePictureUrl = profilePictureUrl;
+
+    const result = await authAPI.register(payload);
     await saveSession(result.token, result.user);
     initSocket(result.token);
     setIsNewUser(false);

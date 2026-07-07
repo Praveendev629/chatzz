@@ -20,7 +20,7 @@ const getSignedUpload = async (req, res) => {
   try {
     const { folder, resourceType } = req.body;
 
-    const allowedFolders = ['chatzz/statuses', 'chatzz/messages', 'chatzz/profiles'];
+    const allowedFolders = ['chatzz/messages', 'chatzz/profiles'];
     if (!allowedFolders.includes(folder)) {
       return res.status(400).json({ success: false, message: 'Invalid folder' });
     }
