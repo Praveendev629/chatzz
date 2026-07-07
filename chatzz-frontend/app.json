@@ -99,7 +99,8 @@
         {
           "microphonePermission": "Allow Chatzz to access your microphone for voice messages and calls"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {
