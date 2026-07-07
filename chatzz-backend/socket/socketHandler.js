@@ -1,11 +1,13 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Message = require('../models/Message');
+const Call = require('../models/Call');
 const { sendPushNotification } = require('../config/firebase');
 const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 
-const onlineUsers = new Map(); // userId -> socketId
-const viewingChatMap = new Map(); // userId -> chatId (which chat the user is currently viewing)
+const onlineUsers = new Map();
+const viewingChatMap = new Map();
+const activeCalls = new Map(); // callerId -> { callDocId, callerId, receiverId, startedAt }
 
 const socketHandler = (io) => {
   // Auth middleware
@@ -183,13 +185,27 @@ const socketHandler = (io) => {
       io.to(to).emit('call_offer', { from: userId, offer, caller, callType });
       console.log(`📞 Call offer from ${socket.user.username} to ${to}`);
 
+      // Record call in database
+      try {
+        const callDoc = await Call.create({
+          caller: userId,
+          receiver: to,
+          callType: callType || 'voice',
+          status: 'missed',
+          startedAt: new Date(),
+        });
+        activeCalls.set(userId, { callDocId: callDoc._id.toString(), callerId: userId, receiverId: to, startedAt: new Date() });
+      } catch (err) {
+        console.warn('Failed to create call record:', err.message);
+      }
+
       // Send FCM push so the receiver gets notified even if app is in background/closed
       try {
         const receiver = await User.findById(to).select('fcmToken');
         if (receiver?.fcmToken) {
           await sendPushNotification({
             token: receiver.fcmToken,
-            title: `📞 Incoming ${callType === 'video' ? 'Video ' : ''}Call`,
+            title: `Incoming ${callType === 'video' ? 'Video ' : ''}Call`,
             body: `${socket.user.username} is calling you`,
             data: {
               type: 'call',
@@ -206,8 +222,21 @@ const socketHandler = (io) => {
     });
 
     // Call answer
-    socket.on('call_answer', ({ to, answer }) => {
+    socket.on('call_answer', async ({ to, answer }) => {
       io.to(to).emit('call_answer', { from: userId, answer });
+
+      // Update call record: mark as answered
+      const activeCall = activeCalls.get(to);
+      if (activeCall) {
+        try {
+          await Call.findByIdAndUpdate(activeCall.callDocId, {
+            status: 'answered',
+            answeredAt: new Date(),
+          });
+        } catch (err) {
+          console.warn('Failed to update call record (answer):', err.message);
+        }
+      }
     });
 
     // ICE candidate
@@ -216,14 +245,45 @@ const socketHandler = (io) => {
     });
 
     // End call
-    socket.on('call_end', ({ to }) => {
+    socket.on('call_end', async ({ to }) => {
       io.to(to).emit('call_ended', { by: userId });
-      console.log(`📵 Call ended by ${socket.user.username}`);
+      console.log(`Call ended by ${socket.user.username}`);
+
+      // Update call record: mark as ended with duration
+      const activeCall = activeCalls.get(to) || activeCalls.get(userId);
+      if (activeCall) {
+        try {
+          const endedAt = new Date();
+          const duration = Math.floor((endedAt - activeCall.startedAt) / 1000);
+          await Call.findByIdAndUpdate(activeCall.callDocId, {
+            status: 'ended',
+            endedAt,
+            duration,
+          });
+          activeCalls.delete(activeCall.callerId);
+        } catch (err) {
+          console.warn('Failed to update call record (end):', err.message);
+        }
+      }
     });
 
     // Reject call
-    socket.on('call_reject', ({ to }) => {
+    socket.on('call_reject', async ({ to }) => {
       io.to(to).emit('call_rejected', { by: userId });
+
+      // Update call record: mark as rejected
+      const activeCall = activeCalls.get(to);
+      if (activeCall) {
+        try {
+          await Call.findByIdAndUpdate(activeCall.callDocId, {
+            status: 'rejected',
+            endedAt: new Date(),
+          });
+          activeCalls.delete(activeCall.callerId);
+        } catch (err) {
+          console.warn('Failed to update call record (reject):', err.message);
+        }
+      }
     });
 
     // ─── Disconnect ────────────────────────────────────────────────────────────

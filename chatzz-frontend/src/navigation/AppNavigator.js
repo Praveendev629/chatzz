@@ -19,7 +19,6 @@ import ProfileScreen from '../screens/ProfileScreen';
 import ChatScreen from '../screens/ChatScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CallScreen from '../screens/CallScreen';
-import StatusScreen from '../screens/StatusScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -106,7 +105,6 @@ const AppNavigator = ({ navigationRef }) => {
             <Stack.Screen name="Chat" component={ChatScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
-            <Stack.Screen name="Status" component={StatusScreen} />
             <Stack.Screen
               name="Call"
               component={CallScreen}

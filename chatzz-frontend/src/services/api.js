@@ -71,13 +71,10 @@ export const messageAPI = {
     api.delete(`/messages/${messageId}`, { data: { deleteForEveryone } }),
 };
 
-// ─── Status ──────────────────────────────────────────────────────────────────
-export const statusAPI = {
-  getAll: () => api.get('/status'),
-  getUserStatuses: (userId) => api.get(`/status/user/${userId}`),
-  create: (data) => api.post('/status', data),
-  view: (statusId) => api.post(`/status/${statusId}/view`),
-  delete: (statusId) => api.delete(`/status/${statusId}`),
+// ─── Calls ─────────────────────────────────────────────────────────────────
+export const callAPI = {
+  getAll: () => api.get('/calls'),
+  delete: (callId) => api.delete(`/calls/${callId}`),
 };
 
 export default api;

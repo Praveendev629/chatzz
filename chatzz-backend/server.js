@@ -11,10 +11,9 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const chatRoutes = require('./routes/chat');
 const messageRoutes = require('./routes/message');
-const statusRoutes = require('./routes/status');
+const callRoutes = require('./routes/call');
 const uploadRoutes = require('./routes/upload');
 const socketHandler = require('./socket/socketHandler');
-const { cleanupExpiredStatusMedia } = require('./utils/statusCleanup');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,7 +43,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/messages', messageRoutes);
-app.use('/api/status', statusRoutes);
+app.use('/api/calls', callRoutes);
 app.use('/api/upload', uploadRoutes);
 
 // Health check
@@ -75,7 +74,4 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Chatzz server running on port ${PORT}`);
-  // Run expired status media cleanup every hour
-  cleanupExpiredStatusMedia();
-  setInterval(cleanupExpiredStatusMedia, 60 * 60 * 1000);
 });

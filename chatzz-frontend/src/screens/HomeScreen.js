@@ -2,13 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Alert, StatusBar, ActivityIndicator,
-  Dimensions, ScrollView, Animated, PanResponder, Image, TextInput, Modal,
+  Dimensions, ScrollView, Animated, PanResponder, Image, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
-import { chatAPI, userAPI, statusAPI } from '../services/api';
-import { uploadToCloudinary } from '../utils/cloudinary';
+import { chatAPI, userAPI, callAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useTheme } from '../context/ThemeContext';
@@ -17,28 +15,19 @@ import ChatListItem from '../components/ChatListItem';
 import { Spacing } from '../theme';
 
 const { width } = Dimensions.get('window');
-const TABS = ['Chats', 'Find People', 'Status'];
+const TABS = ['Chats', 'Find People', 'Calls'];
 
 const HomeScreen = ({ navigation }) => {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const { on, off } = useSocket();
   const { colors: C } = useTheme();
 
   const [chats, setChats] = useState([]);
   const [requests, setRequests] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
-  const [statuses, setStatuses] = useState([]);
-  const [ownStatuses, setOwnStatuses] = useState([]);
+  const [callHistory, setCallHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
-  const [showStatusViewer, setShowStatusViewer] = useState(false);
-  const [viewingStatuses, setViewingStatuses] = useState([]);
-  const [viewingStatusIndex, setViewingStatusIndex] = useState(0);
-  const [showCreateStatus, setShowCreateStatus] = useState(false);
-  const [statusText, setStatusText] = useState('');
-  const [statusBgColor, setStatusBgColor] = useState('#E53935');
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
 
   const scrollRef = useRef(null);
@@ -125,11 +114,10 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  const fetchStatuses = async () => {
+  const fetchCallHistory = async () => {
     try {
-      const result = await statusAPI.getAll();
-      setStatuses(result.statuses || []);
-      setOwnStatuses(result.ownStatuses || []);
+      const result = await callAPI.getAll();
+      setCallHistory(result.calls || []);
     } catch (err) { console.error(err); }
   };
 
@@ -151,7 +139,7 @@ const HomeScreen = ({ navigation }) => {
     fetchChats(true);
     fetchRequests();
     fetchAllUsers();
-    fetchStatuses();
+    fetchCallHistory();
 
     // Set up auto-refresh every 3 seconds
     refreshInterval.current = setInterval(() => {
@@ -165,115 +153,6 @@ const HomeScreen = ({ navigation }) => {
       }
     };
   }, []);
-
-  const createTextStatus = async () => {
-    if (!statusText.trim()) return;
-    try {
-      setUploading(true);
-      setUploadProgress(100);
-      await statusAPI.create({ mediaType: 'text', content: statusText, backgroundColor: statusBgColor });
-      setShowCreateStatus(false);
-      setStatusText('');
-      setUploading(false);
-      setUploadProgress(0);
-      fetchStatuses();
-    } catch (err) {
-      setUploading(false);
-      Alert.alert('Error', err.message || 'Failed to create status');
-    }
-  };
-
-  const createImageStatus = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('Permission needed', 'Allow photo access'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      try {
-        setUploading(true);
-        setUploadProgress(0);
-        const file = result.assets[0];
-        const mediaUrl = await uploadToCloudinary(file.uri, 'chatzz/statuses', token, (pct) => setUploadProgress(pct));
-        await statusAPI.create({ mediaType: 'image', mediaUrl });
-        setUploadProgress(100);
-        setTimeout(() => {
-          setUploading(false);
-          setUploadProgress(0);
-          fetchStatuses();
-        }, 500);
-      } catch (err) {
-        setUploading(false);
-        Alert.alert('Error', err.message || 'Failed to create status');
-      }
-    }
-  };
-
-  const createVideoStatus = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') { Alert.alert('Permission needed', 'Allow video access'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-      quality: 0.8,
-      videoMaxDuration: 30,
-    });
-    if (!result.canceled) {
-      try {
-        setUploading(true);
-        setUploadProgress(0);
-        const file = result.assets[0];
-        const mediaUrl = await uploadToCloudinary(file.uri, 'chatzz/statuses', token, (pct) => setUploadProgress(pct));
-        await statusAPI.create({ mediaType: 'video', mediaUrl });
-        setUploadProgress(100);
-        setTimeout(() => {
-          setUploading(false);
-          setUploadProgress(0);
-          fetchStatuses();
-        }, 500);
-      } catch (err) {
-        setUploading(false);
-        Alert.alert('Error', err.message || 'Failed to create status');
-      }
-    }
-  };
-
-  const openStatusViewer = (userStatuses, index = 0) => {
-    setViewingStatuses(userStatuses);
-    setViewingStatusIndex(index);
-    setShowStatusViewer(true);
-  };
-
-  const viewStatusItem = async (status) => {
-    try {
-      await statusAPI.view(status._id);
-    } catch (err) { console.error(err); }
-  };
-
-  const deleteOwnStatuses = async () => {
-    try {
-      for (const status of ownStatuses) {
-        await statusAPI.delete(status._id);
-      }
-      setOwnStatuses([]);
-      fetchStatuses();
-    } catch (err) {
-      Alert.alert('Error', 'Failed to delete status');
-    }
-  };
-
-  const deleteSingleStatus = async (statusId) => {
-    try {
-      await statusAPI.delete(statusId);
-      setViewingStatuses(prev => prev.filter(s => s._id !== statusId));
-      if (viewingStatuses.length <= 1) {
-        setShowStatusViewer(false);
-      }
-      fetchStatuses();
-    } catch (err) {
-      Alert.alert('Error', 'Failed to delete status');
-    }
-  };
 
   const getTimeAgo = (date) => {
     const now = new Date();
@@ -529,92 +408,53 @@ const HomeScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* Tab 2: Status */}
+        {/* Tab 2: Call History */}
         <View style={{ width }}>
-          {/* My Status - WhatsApp Style */}
-          <TouchableOpacity
-            style={[styles.myStatusSection, { borderBottomColor: C.border }]}
-            onPress={() => {
-              if (ownStatuses.length > 0) {
-                openStatusViewer(ownStatuses, 0);
-              } else {
-                setShowCreateStatus(true);
-              }
-            }}
-            onLongPress={() => {
-              if (ownStatuses.length > 0) {
-                Alert.alert('My Status', 'Choose an action', [
-                  { text: 'View Status', onPress: () => openStatusViewer(ownStatuses, 0) },
-                  { text: 'Add New Status', onPress: () => setShowCreateStatus(true) },
-                  { text: 'Delete All Status', style: 'destructive', onPress: () => deleteOwnStatuses() },
-                  { text: 'Cancel', style: 'cancel' },
-                ]);
-              } else {
-                setShowCreateStatus(true);
-              }
-            }}
-          >
-            <View style={styles.myStatusAvatarContainer}>
-              <View style={[styles.myStatusAvatarRing, { borderColor: ownStatuses.length > 0 ? '#FFD600' : C.primary }]}>
-                {user.profilePicture ? (
-                  <Image source={{ uri: user.profilePicture }} style={styles.myStatusAvatarImg} />
-                ) : (
-                  <View style={[styles.myStatusAvatarPlaceholder, { backgroundColor: C.primary }]}>
-                    <Ionicons name="person" size={22} color="#fff" />
-                  </View>
-                )}
-              </View>
-              {ownStatuses.length === 0 && (
-                <View style={[styles.addStatusIcon, { backgroundColor: C.primary }]}>
-                  <Ionicons name="add" size={16} color="#fff" />
-                </View>
-              )}
-            </View>
-            <View style={styles.myStatusInfo}>
-              <Text style={[styles.myStatusTitle, { color: C.text }]}>My Status</Text>
-              <Text style={[styles.myStatusSubtitle, { color: C.textMuted }]}>
-                {ownStatuses.length > 0
-                  ? `${ownStatuses.length} update${ownStatuses.length > 1 ? 's' : ''} · Tap to view`
-                  : 'Tap to add status update'}
-              </Text>
-            </View>
-            {ownStatuses.length > 0 && (
-              <View style={[styles.statusCountBadge, { backgroundColor: C.primary }]}>
-                <Text style={styles.statusCountText}>{ownStatuses.length}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* Recent Updates Header */}
-          {statuses.length > 0 && (
-            <View style={[styles.statusSectionHeader, { borderBottomColor: C.border }]}>
-              <Text style={[styles.statusSectionTitle, { color: C.textMuted }]}>RECENT UPDATES</Text>
-            </View>
-          )}
-
-          {/* Other Users' Statuses */}
           <FlatList
-            data={statuses}
-            keyExtractor={(item) => item.user._id}
+            data={callHistory}
+            keyExtractor={(item) => item._id}
             scrollEnabled={false}
+            contentContainerStyle={{ paddingBottom: 80 }}
+            ListHeaderComponent={
+              callHistory.length > 0 ? (
+                <View style={[styles.statusSectionHeader, { borderBottomColor: C.border }]}>
+                  <Text style={[styles.statusSectionTitle, { color: C.textMuted }]}>RECENT CALLS</Text>
+                </View>
+              ) : null
+            }
             renderItem={({ item }) => {
-              const lastStatus = item.statuses[0];
-              const timeAgo = lastStatus ? getTimeAgo(lastStatus.createdAt) : '';
+              const otherUser = item.caller._id === user._id ? item.receiver : item.caller;
+              const isOutgoing = item.caller._id === user._id;
+              const isMissed = item.status === 'missed';
+              const isRejected = item.status === 'rejected';
+              const statusColor = isMissed || isRejected ? '#FF1744' : C.textMuted;
+              const durationText = item.duration > 0 ? `${Math.floor(item.duration / 60)}m ${item.duration % 60}s` : '';
+              const timeAgo = getTimeAgo(item.createdAt);
               return (
                 <TouchableOpacity
                   style={[styles.statusRow, { borderBottomColor: C.border }]}
-                  onPress={() => openStatusViewer(item.statuses, 0)}
+                  onPress={() => {
+                    const other = item.caller._id === user._id ? item.receiver : item.caller;
+                    navigation.navigate('Call', { participant: other, isIncoming: false, callType: item.callType });
+                  }}
+                  onLongPress={() => {
+                    Alert.alert('Call Options', '', [
+                      { text: 'Call Back', onPress: () => {
+                        const other = item.caller._id === user._id ? item.receiver : item.caller;
+                        navigation.navigate('Call', { participant: other, isIncoming: false, callType: item.callType });
+                      }},
+                      { text: 'Delete', style: 'destructive', onPress: async () => {
+                        try { await callAPI.delete(item._id); fetchCallHistory(); } catch (err) {}
+                      }},
+                      { text: 'Cancel', style: 'cancel' },
+                    ]);
+                  }}
                   activeOpacity={0.7}
                 >
                   <View style={styles.statusAvatarContainer}>
-                    <View style={[
-                      styles.statusAvatarRing,
-                      item.hasUnviewed
-                        ? { borderColor: '#FFD600' }
-                        : { borderColor: C.textMuted }
-                    ]}>
-                      {item.user.profilePicture ? (
-                        <Image source={{ uri: item.user.profilePicture }} style={styles.statusAvatarImg} />
+                    <View style={[styles.statusAvatarRing, { borderColor: isMissed ? '#FF1744' : C.primary }]}>
+                      {otherUser.profilePicture ? (
+                        <Image source={{ uri: otherUser.profilePicture }} style={styles.statusAvatarImg} />
                       ) : (
                         <View style={[styles.statusAvatarPlaceholder, { backgroundColor: C.primary }]}>
                           <Ionicons name="person" size={22} color="#fff" />
@@ -623,218 +463,43 @@ const HomeScreen = ({ navigation }) => {
                     </View>
                   </View>
                   <View style={styles.statusInfo}>
-                    <Text style={[styles.statusName, { color: C.text }]}>{item.user.username}</Text>
-                    <Text style={[styles.statusTime, { color: C.textMuted }]}>
-                      {timeAgo} · {item.statuses.length} update{item.statuses.length > 1 ? 's' : ''}
-                    </Text>
+                    <Text style={[styles.statusName, { color: isMissed ? '#FF1744' : C.text }]}>{otherUser.username}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                      <Ionicons
+                        name={isOutgoing ? 'arrow-up' : 'arrow-down'}
+                        size={14}
+                        color={isOutgoing ? '#2196F3' : '#4CAF50'}
+                      />
+                      <Text style={[styles.statusTime, { color: statusColor }]}>
+                        {isMissed ? 'Missed' : isRejected ? 'Rejected' : item.status === 'ended' ? (isOutgoing ? 'Outgoing' : 'Incoming') : item.status}
+                        {durationText ? ` · ${durationText}` : ''}
+                        {' · '}
+                        {timeAgo}
+                      </Text>
+                    </View>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+                  <Ionicons
+                    name={item.callType === 'video' ? 'videocam' : 'call'}
+                    size={18}
+                    color={C.textMuted}
+                  />
                 </TouchableOpacity>
               );
             }}
             ListEmptyComponent={
               <View style={styles.emptyStatusContainer}>
-                    <View style={[styles.emptyStatusIcon, { backgroundColor: '#FFD60015' }]}>
-                      <Ionicons name="image-outline" size={48} color="#FFD600" />
+                <View style={[styles.emptyStatusIcon, { backgroundColor: '#2196F315' }]}>
+                  <Ionicons name="call-outline" size={48} color="#2196F3" />
                 </View>
-                <Text style={[styles.emptyStatusTitle, { color: C.text }]}>No status updates yet</Text>
+                <Text style={[styles.emptyStatusTitle, { color: C.text }]}>No call history yet</Text>
                 <Text style={[styles.emptyStatusSubtitle, { color: C.textMuted }]}>
-                  When your contacts post status updates, they'll appear here
+                  Your voice and video calls will appear here
                 </Text>
               </View>
             }
           />
         </View>
       </ScrollView>
-
-      {/* Status Viewer Modal */}
-      <Modal visible={showStatusViewer} transparent animationType="fade">
-        <View style={styles.statusViewerOverlay}>
-          {/* Status Progress Bar */}
-          <View style={styles.statusProgressContainer}>
-            {viewingStatuses.map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.statusProgressBar,
-                  { backgroundColor: index <= viewingStatusIndex ? '#fff' : 'rgba(255,255,255,0.3)' }
-                ]}
-              />
-            ))}
-          </View>
-
-          {/* Header */}
-          <View style={styles.statusViewerHeader}>
-            <View style={styles.statusViewerUserInfo}>
-              {viewingStatuses[viewingStatusIndex]?.user?.profilePicture ? (
-                <Image
-                  source={{ uri: viewingStatuses[viewingStatusIndex].user.profilePicture }}
-                  style={styles.statusViewerAvatar}
-                />
-              ) : (
-                <View style={[styles.statusViewerAvatarPlaceholder, { backgroundColor: C.primary }]}>
-                  <Ionicons name="person" size={16} color="#fff" />
-                </View>
-              )}
-              <View>
-                <Text style={styles.statusViewerTitle}>
-                  {viewingStatuses[viewingStatusIndex]?.user?.username || 'Status'}
-                </Text>
-                <Text style={styles.statusViewerTime}>
-                  {getTimeAgo(viewingStatuses[viewingStatusIndex]?.createdAt)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.statusViewerActions}>
-              {/* Show viewers count for own status */}
-              {viewingStatuses[viewingStatusIndex]?.user?._id === user._id && (
-                <TouchableOpacity
-                  style={styles.statusViewerActionBtn}
-                  onPress={() => {
-                    const status = viewingStatuses[viewingStatusIndex];
-                    Alert.alert(
-                      'Status Viewers',
-                      `${status.views?.length || 0} people viewed this status`,
-                      [{ text: 'OK' }]
-                    );
-                  }}
-                >
-                  <Ionicons name="eye-outline" size={22} color="#fff" />
-                  <Text style={styles.statusViewerActionText}>
-                    {viewingStatuses[viewingStatusIndex]?.views?.length || 0}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {/* Delete button for own status */}
-              {viewingStatuses[viewingStatusIndex]?.user?._id === user._id && (
-                <TouchableOpacity
-                  style={styles.statusViewerActionBtn}
-                  onPress={() => {
-                    Alert.alert('Delete Status', 'Are you sure?', [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Delete', style: 'destructive', onPress: () => {
-                        deleteSingleStatus(viewingStatuses[viewingStatusIndex]._id);
-                      }},
-                    ]);
-                  }}
-                >
-                  <Ionicons name="trash-outline" size={22} color="#FF6B6B" />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={() => setShowStatusViewer(false)}>
-                <Ionicons name="close" size={28} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Status Content */}
-          <View style={styles.statusViewerContent}>
-            {viewingStatuses[viewingStatusIndex]?.mediaType === 'text' ? (
-              <View style={[styles.textStatusContent, { backgroundColor: viewingStatuses[viewingStatusIndex]?.backgroundColor || '#E53935' }]}>
-                <Text style={styles.textStatus}>{viewingStatuses[viewingStatusIndex]?.content}</Text>
-              </View>
-            ) : viewingStatuses[viewingStatusIndex]?.mediaType === 'image' ? (
-              <Image
-                source={{ uri: viewingStatuses[viewingStatusIndex]?.mediaUrl }}
-                style={styles.statusImage}
-                resizeMode="contain"
-              />
-            ) : (
-              <Text style={styles.statusMediaType}>Video</Text>
-            )}
-          </View>
-
-          {/* Navigation */}
-          <View style={styles.statusViewerNav}>
-            <TouchableOpacity
-              style={styles.statusNavBtn}
-              onPress={() => {
-                if (viewingStatusIndex > 0) {
-                  setViewingStatusIndex(viewingStatusIndex - 1);
-                  viewStatusItem(viewingStatuses[viewingStatusIndex - 1]);
-                }
-              }}
-              disabled={viewingStatusIndex === 0}
-            >
-              <Ionicons name="chevron-back" size={32} color={viewingStatusIndex === 0 ? '#666' : '#fff'} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.statusNavBtn}
-              onPress={() => {
-                if (viewingStatusIndex < viewingStatuses.length - 1) {
-                  setViewingStatusIndex(viewingStatusIndex + 1);
-                  viewStatusItem(viewingStatuses[viewingStatusIndex + 1]);
-                } else {
-                  setShowStatusViewer(false);
-                }
-              }}
-            >
-              <Ionicons name="chevron-forward" size={32} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Create Status Modal */}
-      <Modal visible={showCreateStatus} transparent animationType="slide">
-        <View style={styles.createStatusOverlay}>
-          <View style={[styles.createStatusSheet, { backgroundColor: C.surface }]}>
-            {uploading ? (
-              // Upload Progress View
-              <View style={styles.uploadProgressContainer}>
-                <View style={styles.uploadProgressCircle}>
-                  <View style={[styles.uploadProgressRing, { borderColor: C.primary }]}>
-                    <Text style={[styles.uploadProgressText, { color: C.primary }]}>{uploadProgress}%</Text>
-                  </View>
-                </View>
-                <Text style={[styles.uploadProgressTitle, { color: C.text }]}>Uploading Status...</Text>
-                <View style={[styles.uploadProgressBar, { backgroundColor: C.border }]}>
-                  <View style={[styles.uploadProgressFill, { width: `${uploadProgress}%`, backgroundColor: C.primary }]} />
-                </View>
-                <Text style={[styles.uploadProgressSubtitle, { color: C.textMuted }]}>
-                  {uploadProgress < 100 ? 'Please wait...' : 'Upload complete!'}
-                </Text>
-              </View>
-            ) : (
-              // Create Status Form
-              <>
-                <Text style={[styles.createStatusTitle, { color: C.text }]}>Create Status</Text>
-                <View style={[styles.colorPicker, { backgroundColor: C.card }]}>
-                  {['#E53935', '#1565C0', '#2E7D32', '#7B1FA2', '#FF9800', '#000000'].map((color) => (
-                    <TouchableOpacity
-                      key={color}
-                      style={[styles.colorOption, { backgroundColor: color, borderColor: statusBgColor === color ? '#fff' : 'transparent' }]}
-                      onPress={() => setStatusBgColor(color)}
-                    />
-                  ))}
-                </View>
-                <TextInput
-                  style={[styles.statusInput, { backgroundColor: C.inputBg, color: C.text, borderColor: C.border }]}
-                  placeholder="What's on your mind?"
-                  placeholderTextColor={C.textMuted}
-                  value={statusText}
-                  onChangeText={setStatusText}
-                  multiline
-                />
-                <View style={styles.createStatusActions}>
-                  <TouchableOpacity style={[styles.createStatusBtn, { backgroundColor: C.primary }]} onPress={createTextStatus}>
-                    <Text style={styles.createStatusBtnText}>Post Text</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.createStatusBtn, { backgroundColor: '#9C27B0' }]} onPress={createImageStatus}>
-                    <Ionicons name="image" size={20} color="#fff" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.createStatusBtn, { backgroundColor: '#FF9800' }]} onPress={createVideoStatus}>
-                    <Ionicons name="videocam" size={20} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity onPress={() => setShowCreateStatus(false)}>
-                  <Text style={[styles.cancelCreate, { color: C.textMuted }]}>Cancel</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
@@ -901,32 +566,6 @@ const styles = StyleSheet.create({
   },
   requestBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   connectBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  // Status styles - WhatsApp-like design
-  myStatusSection: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.lg, paddingVertical: 16, borderBottomWidth: 1,
-  },
-  myStatusAvatarContainer: { position: 'relative', width: 56, height: 56 },
-  myStatusAvatarRing: {
-    width: 56, height: 56, borderRadius: 28, borderWidth: 2.5,
-    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-  },
-  myStatusAvatarImg: { width: 50, height: 50, borderRadius: 25 },
-  myStatusAvatarPlaceholder: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
-  addStatusIcon: {
-    position: 'absolute', bottom: -2, right: -2,
-    width: 22, height: 22, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#000',
-  },
-  myStatusInfo: { flex: 1, marginLeft: 14 },
-  myStatusTitle: { fontSize: 16, fontWeight: '600' },
-  myStatusSubtitle: { fontSize: 13, marginTop: 3, opacity: 0.6 },
-  statusCountBadge: {
-    width: 24, height: 24, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  statusCountText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   statusSectionHeader: {
     paddingHorizontal: Spacing.lg, paddingVertical: 10,
     borderBottomWidth: 1,
@@ -950,69 +589,6 @@ const styles = StyleSheet.create({
   emptyStatusIcon: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   emptyStatusTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
   emptyStatusSubtitle: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
-  // Status Viewer Modal
-  statusViewerOverlay: { flex: 1, backgroundColor: '#000' },
-  statusProgressContainer: {
-    flexDirection: 'row', paddingHorizontal: 12, paddingTop: 50, gap: 4,
-  },
-  statusProgressBar: { flex: 1, height: 3, borderRadius: 2 },
-  statusViewerHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
-  },
-  statusViewerUserInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  statusViewerAvatar: { width: 40, height: 40, borderRadius: 20 },
-  statusViewerAvatarPlaceholder: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  statusViewerTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  statusViewerTime: { color: 'rgba(255,255,255,0.6)', fontSize: 12 },
-  statusViewerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statusViewerActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statusViewerActionText: { color: '#fff', fontSize: 14 },
-  statusViewerContent: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  textStatusContent: {
-    width: '90%', height: '60%', borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center', padding: 24,
-  },
-  textStatus: { color: '#fff', fontSize: 24, fontWeight: '700', textAlign: 'center' },
-  statusImage: { width: '100%', height: '100%' },
-  statusMediaType: { color: '#fff', fontSize: 18 },
-  statusViewerNav: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingHorizontal: 32, paddingBottom: 40,
-  },
-  statusNavBtn: { padding: 10 },
-  // Create Status Modal
-  createStatusOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  createStatusSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  createStatusTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 16 },
-  colorPicker: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 16, padding: 12, borderRadius: 12 },
-  colorOption: { width: 36, height: 36, borderRadius: 18, borderWidth: 3 },
-  statusInput: {
-    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12,
-    fontSize: 16, marginBottom: 16, borderWidth: 1, minHeight: 80,
-  },
-  createStatusActions: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  createStatusBtn: {
-    flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center', justifyContent: 'center',
-  },
-  createStatusBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  cancelCreate: { textAlign: 'center', paddingVertical: 12, fontSize: 15 },
-  // Upload Progress
-  uploadProgressContainer: { alignItems: 'center', paddingVertical: 30 },
-  uploadProgressCircle: { marginBottom: 20 },
-  uploadProgressRing: {
-    width: 100, height: 100, borderRadius: 50,
-    borderWidth: 4, alignItems: 'center', justifyContent: 'center',
-  },
-  uploadProgressText: { fontSize: 24, fontWeight: '700' },
-  uploadProgressTitle: { fontSize: 18, fontWeight: '600', marginBottom: 16 },
-  uploadProgressBar: {
-    width: '80%', height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 12,
-  },
-  uploadProgressFill: {
-    height: '100%', borderRadius: 3,
-  },
-  uploadProgressSubtitle: { fontSize: 14 },
 });
 
 export default HomeScreen;
