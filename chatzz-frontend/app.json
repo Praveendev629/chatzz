@@ -100,7 +100,11 @@
           "microphonePermission": "Allow Chatzz to access your microphone for voice messages and calls"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "@config-plugins/react-native-webrtc",
+        {}
+      ]
     ],
     "extra": {
       "eas": {
