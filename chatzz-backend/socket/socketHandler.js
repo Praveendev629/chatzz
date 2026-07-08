@@ -8,6 +8,7 @@ const { deleteFromCloudinary } = require('../utils/cloudinaryCleanup');
 const onlineUsers = new Map();
 const viewingChatMap = new Map();
 const activeCalls = new Map(); // callerId -> { callDocId, callerId, receiverId, startedAt }
+const pendingCalls = new Map(); // receiverId -> { offer, caller, callType, callerId, timeout }
 
 const socketHandler = (io) => {
   // Auth middleware
@@ -36,6 +37,20 @@ const socketHandler = (io) => {
 
     await User.findByIdAndUpdate(userId, { isOnline: true, lastSeen: new Date() });
     socket.broadcast.emit('user_online', { userId, isOnline: true });
+
+    // ─── Deliver pending call offers ────────────────────────────────────────
+    const pending = pendingCalls.get(userId);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      pendingCalls.delete(userId);
+      socket.emit('call_offer', {
+        from: pending.callerId,
+        offer: pending.offer,
+        caller: pending.caller,
+        callType: pending.callType,
+      });
+      console.log(`Delivering pending call to ${socket.user.username}`);
+    }
 
     // ─── Viewing Chat (suppress notifications) ──────────────────────────────
     socket.on('viewing_chat', ({ chatId }) => {
@@ -183,7 +198,22 @@ const socketHandler = (io) => {
     // Outgoing call offer
     socket.on('call_offer', async ({ to, offer, caller, callType }) => {
       io.to(to).emit('call_offer', { from: userId, offer, caller, callType });
-      console.log(`📞 Call offer from ${socket.user.username} to ${to}`);
+      console.log(`Call offer from ${socket.user.username} to ${to}`);
+
+      // If receiver is offline, cache the offer for when they reconnect
+      if (!onlineUsers.has(to)) {
+        // Clear any previous pending call for this receiver
+        const existing = pendingCalls.get(to);
+        if (existing) clearTimeout(existing.timeout);
+
+        const timeout = setTimeout(() => {
+          pendingCalls.delete(to);
+          console.log(`Pending call for ${to} expired`);
+        }, 60000); // 60 second timeout
+
+        pendingCalls.set(to, { offer, caller, callType, callerId: userId, timeout });
+        console.log(`Cached pending call for ${to}`);
+      }
 
       // Record call in database
       try {
@@ -249,6 +279,12 @@ const socketHandler = (io) => {
       io.to(to).emit('call_ended', { by: userId });
       console.log(`Call ended by ${socket.user.username}`);
 
+      // Clean up pending call if exists
+      const pending = pendingCalls.get(to);
+      if (pending) { clearTimeout(pending.timeout); pendingCalls.delete(to); }
+      const pending2 = pendingCalls.get(userId);
+      if (pending2) { clearTimeout(pending2.timeout); pendingCalls.delete(userId); }
+
       // Update call record: mark as ended with duration
       const activeCall = activeCalls.get(to) || activeCalls.get(userId);
       if (activeCall) {
@@ -270,6 +306,10 @@ const socketHandler = (io) => {
     // Reject call
     socket.on('call_reject', async ({ to }) => {
       io.to(to).emit('call_rejected', { by: userId });
+
+      // Clean up pending call if exists
+      const pending = pendingCalls.get(to);
+      if (pending) { clearTimeout(pending.timeout); pendingCalls.delete(to); }
 
       // Update call record: mark as rejected
       const activeCall = activeCalls.get(to);

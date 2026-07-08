@@ -68,6 +68,13 @@ const handleNotificationResponse = (response) => {
     }
   }
 
+  // Handle call notification — the socket will reconnect and deliver the pending offer
+  if (data?.type === 'call' && navigationRef.current) {
+    // Don't navigate yet — let the socket reconnect and the AppNavigator's
+    // call_offer listener will handle navigation with the full offer data
+    return;
+  }
+
   // Navigate to chat
   if (data?.chatId && navigationRef.current) {
     setTimeout(() => {
