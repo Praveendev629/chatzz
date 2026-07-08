@@ -25,6 +25,10 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    hardwareId: {
+      type: String,
+      default: null,
+    },
     fcmToken: {
       type: String,
       default: null,
@@ -66,5 +70,7 @@ userSchema.methods.getSignedToken = function () {
     expiresIn: process.env.JWT_EXPIRE,
   });
 };
+
+userSchema.index({ hardwareId: 1 }, { sparse: true });
 
 module.exports = mongoose.model('User', userSchema);

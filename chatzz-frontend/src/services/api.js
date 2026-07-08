@@ -32,7 +32,7 @@ api.interceptors.response.use(
 // ─── Auth ────────────────────────────────────────────────────────────────────
 export const authAPI = {
   register: (formData) => api.post('/auth/register', formData),
-  checkDevice: (deviceId) => api.post('/auth/check-device', { deviceId }),
+  checkDevice: (deviceId, hardwareId) => api.post('/auth/check-device', { deviceId, hardwareId }),
   updateFcmToken: (fcmToken) => api.put('/auth/fcm-token', { fcmToken }),
 };
 

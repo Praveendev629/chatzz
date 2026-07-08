@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Device from 'expo-device';
 import * as Application from 'expo-application';
 import * as FileSystem from 'expo-file-system';
+import { Dimensions } from 'react-native';
 import { authAPI, userAPI } from '../services/api';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { registerForPushNotifications } from '../services/notifications';
@@ -11,6 +12,26 @@ import { initSocket, disconnectSocket } from '../services/socket';
 const AuthContext = createContext({});
 
 const PROFILE_PIC_PATH = FileSystem.documentDirectory + 'chatzz_profile.jpg';
+
+// Stable hardware fingerprint — persists across reinstalls and signing key changes
+const getHardwareFingerprint = () => {
+  const { width, height } = Dimensions.get('window');
+  const parts = [
+    Device.brand || '',
+    Device.modelName || '',
+    Device.osBuildId || '',
+    Device.osInternalBuildId || '',
+    Math.min(width, height),
+    Math.max(width, height),
+    Device.totalMemory || 0,
+  ];
+  let hash = 0;
+  const str = parts.join('|');
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return `hw_${Math.abs(hash).toString(36)}`;
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -42,7 +63,8 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
         try {
           const deviceId = await getDeviceId();
-          const result = await authAPI.checkDevice(deviceId);
+          const hardwareId = getHardwareFingerprint();
+          const result = await authAPI.checkDevice(deviceId, hardwareId);
           if (result.registered && result.token) {
             await saveSession(result.token, { ...cachedUser, ...result.user });
           }
@@ -54,7 +76,8 @@ export const AuthProvider = ({ children }) => {
 
       // ── No cached session – check if device is already registered ──────────
       const deviceId = await getDeviceId();
-      const result = await authAPI.checkDevice(deviceId);
+      const hardwareId = getHardwareFingerprint();
+      const result = await authAPI.checkDevice(deviceId, hardwareId);
 
       if (result.registered && result.token) {
         // Device already has an account – auto-login
@@ -132,6 +155,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async ({ username, profilePictureUri }) => {
     const deviceId = await getDeviceId();
+    const hardwareId = getHardwareFingerprint();
     const fcmToken = await registerForPushNotifications();
 
     let profilePictureUrl = null;
@@ -141,7 +165,7 @@ export const AuthProvider = ({ children }) => {
       await saveLocalProfilePic(profilePictureUri);
     }
 
-    const payload = { username, deviceId };
+    const payload = { username, deviceId, hardwareId };
     if (fcmToken) payload.fcmToken = fcmToken;
     if (profilePictureUrl) payload.profilePictureUrl = profilePictureUrl;
 

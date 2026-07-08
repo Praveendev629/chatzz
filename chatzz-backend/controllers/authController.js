@@ -5,21 +5,34 @@ const User = require('../models/User');
 // @access  Public
 const register = async (req, res) => {
   try {
-    const { username, deviceId, fcmToken } = req.body;
+    const { username, deviceId, hardwareId, fcmToken } = req.body;
 
     if (!username || !deviceId) {
       return res.status(400).json({ success: false, message: 'Username and deviceId are required' });
     }
 
-    // Check if device already registered
-    let user = await User.findOne({ deviceId });
+    // Check if device already registered (by deviceId or hardwareId)
+    let user = await User.findOne({
+      $or: [
+        { deviceId },
+        ...(hardwareId ? [{ hardwareId }] : []),
+      ],
+    });
 
     if (user) {
       // Update FCM token if changed
       if (fcmToken && user.fcmToken !== fcmToken) {
         user.fcmToken = fcmToken;
-        await user.save();
       }
+      // Save hardwareId if not set yet
+      if (hardwareId && !user.hardwareId) {
+        user.hardwareId = hardwareId;
+      }
+      // Update deviceId if changed (signing key change)
+      if (user.deviceId !== deviceId) {
+        user.deviceId = deviceId;
+      }
+      await user.save();
       const token = user.getSignedToken();
       return res.status(200).json({
         success: true,
@@ -38,7 +51,7 @@ const register = async (req, res) => {
     // Create new user
     const profilePicture = req.body.profilePictureUrl || (req.file ? req.file.path : null);
 
-    user = await User.create({ username, deviceId, fcmToken, profilePicture });
+    user = await User.create({ username, deviceId, hardwareId, fcmToken, profilePicture });
 
     const token = user.getSignedToken();
     res.status(201).json({
@@ -58,10 +71,20 @@ const register = async (req, res) => {
 // @access  Public
 const checkDevice = async (req, res) => {
   try {
-    const { deviceId } = req.body;
+    const { deviceId, hardwareId } = req.body;
     if (!deviceId) return res.status(400).json({ success: false, message: 'deviceId required' });
 
-    const user = await User.findOne({ deviceId }).select('-blockedUsers -chatRequests');
+    // Search by deviceId first (primary), then hardwareId (fallback)
+    let user = await User.findOne({ deviceId }).select('-blockedUsers -chatRequests');
+
+    if (!user && hardwareId) {
+      user = await User.findOne({ hardwareId }).select('-blockedUsers -chatRequests');
+      // Link the new deviceId to the existing account
+      if (user) {
+        user.deviceId = deviceId;
+        await user.save();
+      }
+    }
 
     if (!user) {
       return res.status(404).json({ success: false, registered: false });
